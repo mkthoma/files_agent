@@ -24,13 +24,13 @@ Why Box is the primary benchmark: it is the closest thing to Rillet for files. I
 
 ## 2. Which gaps can our agent close today?
 
-**Ours to build**, using the seat's existing tools (`FileAttachment.list/get/update`, `DriveFolder.list/get`, `DriveFileRevision.list`, `Item.list/get`, `AgentTask`, `endpoint.agent.tasks.run`):
+**Ours to build**, using the seat's existing tools (`FileAttachment.list/get/update`, `DriveFolder.list`, `Item.list`, `Party.list`, `DriveAccessLog.list`, `AgentSession.create`, `AgentEscalation.create/list`, `tools.search`):
 
-- **Part-to-drawing resolver** (`files.find_drawing`). It matches `Item.code` exactly, then finds files by `entity_id` and filename, and ranks them by `is_archived`, folder and revision. It flags KJ-BRKT-04 as a different part from J-BRKT-04.
-- **Evidence-scored Incoming triage** (`files.tidy_incoming`). It scores each file on its linked record, sender, filename and description, treating all of these as evidence and never as instructions. From 9 files it files 5 by updating `folder_id`. It spots the duplicate PO on filename, sender and size, since the hash can't be trusted, and archives it with a pointer to the original. It escalates the other 3 and names what is missing for each.
+- **Part-to-drawing resolver** (`files.find_drawing`). It matches `Item.code` exactly, then finds files by `entity_id`, and ranks them by `is_archived`, folder, tags and revision. It flags KJ-BRKT-04 as a different part from J-BRKT-04.
+- **Evidence-scored Incoming triage** (`files.tidy_incoming`). It scores each file on its linked record, sender, filename and description, treating all of these as evidence and never as instructions. Of the 18 rows now in Incoming it files the 5 it is sure of by updating `folder_id`, and escalates the rest, naming what is missing for each. It archives a duplicate only when the recorded hash can be trusted; on Keystone today it can't, so the second PO is escalated with a pointer to the original. It never files into a folder that already holds a file with the same name, and a live run writes only to the 9 original files, not to the repair copies.
 - **Undo log and clobber check.** It snapshots every row before a write, re-reads it after the write, and reports if another seat has overwritten its change.
-- **Scheduled triage** through AgentTask. The agent checks its own task's result with `AgentTask.get`, because MCP rejects filtering on the values the server actually writes (`queued`, `job_failed`). *Filed as a bug.*
-- **Calling the MCP tools safely.** The agent never sends a list tool's advertised defaults, which return 0 rows. It sends "arrived today" as an explicit timestamp range rather than a bare date, which silently returns nothing. It discovers its Drive tools by name, because `tools.search` with `module=drive` finds only 4 of 28. *All three filed as bugs.*
+- **Scheduled triage** through AgentTask is possible but not in this build, because creating a task is a write outside the agent's three allowed write tools. If it is added, the agent should check its own task's result with `AgentTask.get`, because MCP rejects filtering on the values the server actually writes (`queued`, `job_failed`). *Filed as a bug.*
+- **Calling the MCP tools safely.** The agent's skills never send a list tool's advertised defaults, which return 0 rows. It never sends a date filter, because a bare date silently returns nothing; it filters dates in code instead. It discovers its Drive tools by name, because `tools.search` with `module=drive` finds only 4 of 28. *All three filed as bugs.*
 
 **Platform work:**
 
@@ -38,7 +38,7 @@ Why Box is the primary benchmark: it is the closest thing to Rillet for files. I
 - Wire Drive into design review's existing release flow, instead of building new revision tables.
 - Add trash and restore for rows without revisions. Not delete, because every seat can write these tables.
 - Add an `expect_updated_at` guard on file updates, like the `expect_status` guard escalations already have.
-- Gate `FileAttachment`, `Notification` and search by the owning app. The board marks this fixed (N179, N180), but on 25 Sep our seat still sees 83 e-sign titles (and can write those rows) and 92 notifications about apps it is refused. *Re-filed as bugs.*
+- Gate `FileAttachment`, `Notification` and search by the owning app. The board marks this fixed (N179, N180), but on 25 Sep our seat still sees 83 e-sign titles (and those rows declare themselves writable, `_permissions.write = true`; we did not try a write) and 92 notifications about apps it is refused. *Re-filed as bugs.*
 - Merge the 23 Sep Drive repair copies back into the originals. Every Keystone scenario file now exists twice (Incoming holds 18 rows), and the copies lost tags, sender, part link and archive state, so the superseded RevB copy looks current. *Filed as a bug.*
 - Add a document-type custom field, and give Automations access to filing rules.
 - Make the AgentTask scheduler execute runs, time out stuck ones, and reject schedules it can't parse.

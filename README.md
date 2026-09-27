@@ -447,7 +447,7 @@ One-shot faults fire only while the agent's pass is running.
 
 ## 4. From gap report to code
 
-The submitted one-page gap report is [`docs/gap_report.md`](docs/gap_report.md). It answers three questions. This section shows, for every point in it: **what the agent does about it, how, which files, and which task proves it.** Agent features are numbered A1–A14 ([4.6](#46-the-agents-features-a1a14)) and platform requests P1–P13 ([4.7](#47-platform-change-requests-p1p13)).
+The one-page gap report is [`docs/gap_report.md`](docs/gap_report.md). The team updated it after Step 3 (PR #2, 27 Sept 2026: the later bugs, the 23 Sept data change and the hash gap); the version submitted for Step 3 is the git tag `step3-submitted` (commit `ea776d6`). It answers three questions. This section shows, for every point in it: **what the agent does about it, how, which files, and which task proves it.** Agent features are numbered A1–A14 ([4.6](#46-the-agents-features-a1a14)) and platform requests P1–P13 ([4.7](#47-platform-change-requests-p1p13)).
 
 **Status key:** ✅ built · 🟡 partly built (the rest is platform work or a known limit) · 🛠 platform work (staff) · 🐞 platform defect, reported as a bug · ⛔ not built.
 
@@ -459,14 +459,17 @@ The submitted one-page gap report is [`docs/gap_report.md`](docs/gap_report.md).
 | **Q1.2** Enforce revision state | 🟡 3 signals read, tag conflicts flagged · P2 | `skills/find_drawing.py`, `skills/revisions.py` | D1, D3 |
 | **Q1.3** Link part to drawing as data | 🟡 resolver A1 · P2 | `skills/find_drawing.py`, `safe_reads.py` | D1, D2 |
 | **Q1.4** File by typed metadata | 🟡 type from filename, not stored · P7 | `skills/profiles.py`, `filing_rules.toml` | TI1, TI2, G1 |
-| **Q1.5** Search completely | 🐞 F5 / P9 · agent pages the full list | `safe_reads.py`, `skills/overview.py` | C1, C2 |
+| **Q1.5** Search completely | 🐞 F5, B2, B6, B22 / P9 · agent pages the full list; never sends `search` or date filters | `safe_reads.py`, `skills/overview.py` | C1, C2 |
 | **Q1.6** Edit safely, with an undo trail | 🟡 guard + notes + restore · P6, P8, P3 | `guards.py`, `snapshot.py`, `skills/triage.py`, `harness/runner.py` | TI4, TI5, TI2, TI2L, TI3, R2, R5 |
-| **Q1.7** Keep other apps' data out | 🐞 F1, F2 / P5 · leak guard A11 | `privacy.py` (+ where it is applied) | C2, C3 |
+| **Q1.7** Trust file hashes | 🐞 B4 / P10 · agent distrusts shared hashes; name + size is only a suspicion (A6) | `skills/duplicates.py`, `skills/triage.py` | DU1, TI2, TI2L |
 | **Q2** Part → drawing resolver | ✅ A1 (A5 in part: no drive-wide revision report) | `skills/find_drawing.py`, `skills/revisions.py` | D1–D4 |
 | **Q2** Evidence-scored Incoming triage | ✅ A3, A6, A7, A9, A14 (A2 in part: document type from the filename only) | `skills/triage.py`, `profiles.py`, `duplicates.py`, `escalate.py`, `filing_rules.toml` | TI1–TI6, TI2L, G1, R4, DU1 |
 | **Q2** Undo log and clobber check | ✅ checks + notes; 🟡 restore built and checked offline (S13 in 7.3), not yet run live · A8 | `guards.py`, `snapshot.py`, `harness/runner.py`, `harness/preflight.py` | TI4, TI5 |
-| **Q2** Scheduled triage via `AgentTask` cron | ⛔ moved out of Step 4 (A13) | — | — |
-| **Q3.1** Work against a platform that contradicts itself | ✅ A12 | `skills/overview.py` | C1 |
+| **Q2** Scheduled triage via `AgentTask` | ⛔ not in this build (A13) | — | — |
+| **Q2** Calling the MCP tools safely | ✅ skills send only exact, comma-free filters, never date filters, `search` or advertised defaults; tools found by exact name (T1.5) | `safe_reads.py`, `catalog.py`, `config.py` | C1, C2, O4 in 7.2 |
+| **Q2 platform** Gate by owning app (Q1.7 in the Step 3 report) | 🐞 F1, F2, B20, B21 / P5 · leak guard A11 | `privacy.py` (+ where it is applied) | C2, C3 |
+| **Q2 platform** Merge the 23 Sept repair copies back | 🐞 B18 / P12 · pre-flight, scope and same-name rules | `harness/preflight.py`, `skills/triage.py` | TI2, TI2L |
+| **Q3.1** Cross-check surfaces instead of trusting one | ✅ A12 | `skills/overview.py` | C1 |
 | **Q3.2** Refuse with evidence | ✅ A3, A9, A10 | `skills/triage.py`, `skills/escalate.py`, `skills/access.py` | R1–R5, TI1–TI3, TI2L |
 | **Q3.3** Catch a write that lands on ours | ✅ detect (not prevent) | `guards.py`, `skills/triage.py` | TI5 (after our write), TI4 (before it) |
 
@@ -504,8 +507,15 @@ The submitted one-page gap report is [`docs/gap_report.md`](docs/gap_report.md).
 - **Files:** `agent/guards.py`, `agent/snapshot.py`, `agent/skills/triage.py`, `harness/runner.py`, `harness/preflight.py`, `harness/__main__.py`.
 - **Proved by:** TI4 (a row changed before our write is SKIPPED), TI5 (a change overwriting ours right after our write is reported FAILED). Restore itself runs only in a live write run (`harness restore` can also be run by hand).
 
-#### D. Scheduled triage via `AgentTask` cron ⛔
-Not built. The Step 4 plan (A13) moved it out of Step 4: an `AgentTask` would run the **platform's built-in agent**, not ours. It was proposed as platform work (P7, Automations access). The same triage runs on demand: `python -m agent ask "Tidy the incoming folder."` (plan-only).
+#### D. Scheduled triage via `AgentTask` ⛔
+Not built. Creating a task is a write outside the agent's three allowed write tools, and the Step 4 plan (A13) moved it out of Step 4: an `AgentTask` would run the **platform's built-in agent**, not ours. It was proposed as platform work (P7, Automations access). The same triage runs on demand: `python -m agent ask "Tidy the incoming folder."` (plan-only).
+
+#### E. Calling the MCP tools safely ✅ (skills) · 🟡 (the model's own calls)
+- **Why:** several list-tool traps return 0 rows or wrong rows without an error: advertised filter defaults, `%` and `_` in `search`, date-only filters compared as text, unparseable comparison values, `ne:` dropping empty values, commas becoming OR lists (bugs B1, B2, B5, B6, L2, L5).
+- **What:** every skill reads through `list_all` in `agent/safe_reads.py`.
+- **How:** only exact, comma-free filters on a short list of id-like fields go to the server, plus `limit` and `offset`; everything else is filtered and sorted in code. The skills never send `search`, date filters, `ne:`/`gt:`/`lt:` values or a tool's advertised defaults. Tools are found by exact name from `tools/list`, never through `tools.search` (bug B16).
+- **Files:** `agent/safe_reads.py`, `agent/catalog.py`, `agent/config.py`.
+- **Proved by:** C1 and C2 (full paging), O4 in [7.2](#72-ground-truth-ask-the-platform-directly) (the not-Item count). **Limit:** the read tools the model may call directly (Appendix B) are passed through as the model writes them.
 
 ### 4.3 The seven gaps (Q1): what the benchmarks do, and our answer
 
@@ -515,13 +525,15 @@ Not built. The Step 4 plan (A13) moved it out of Step 4: an `AgentTask` would ru
 | 2 | Onshape blocks obsolete revisions; Vault has Released/Obsolete states | "Superseded" is just tags, `is_archived` and a description, all editable | `find_drawing` treats a drawing as superseded if any of three signals says so (archived, Superseded folder, `superseded` tag), flags tag conflicts, and names a current drawing only when exactly one is live and nothing conflicts | **P2:** wire Drive to design review's release flow |
 | 3 | Onshape tracks revisions per part number | `Item.design_file_id` is empty; files link through untyped `entity_id` | exact-code resolver; look-alikes flagged | **P2** |
 | 4 | SharePoint autofill; M-Files files by metadata | no document type, expiry or tax year fields | document type worked out from the filename (5 types in `filing_rules.toml`), used only to choose a folder, never stored | **P7:** custom fields + Automations |
-| 5 | search returns everything, or says it was cut | `/api/search` stops at 5 per type (bug **F5**) | never uses it; pages the full list and filters in code | **P9** |
-| 6 | Box `If-Match`/412, Vault check-out, Drive Activity log | last write wins; no delete; a browser-written access log (bug L8) | write guard, appended notes, snapshot/journal/restore on live runs | **P6** guard, **P8** history, **P3** trash/restore |
-| 7 | a denied app's documents stay hidden | 83 e-sign titles (3 offer letters) and 92 notices visible (bugs **F1**, **F2**) | leak guard: placeholders for skills, model and traces; never reads `Notification` or `/api/search` | **P5:** gate by owning app |
+| 5 | search returns everything, or says it was cut | `/api/search` stops at 5 per type and ignores `limit`/`offset` (bugs **F5**, **B22**); `search=` treats `%` and `_` as wildcards (**B2**); date-only filters compare as text (**B6**) | never uses `/api/search` or `search=`, never sends date filters; pages the full list and filters in code | **P9** |
+| 6 | Box `If-Match`/412, Vault check-out, Drive Activity log | last write wins; no delete; a browser-written access log (bug L8), re-dated by the 23 Sept repair (**B19**); API agent sessions recorded as anonymous (**B7**) | write guard, appended notes, snapshot/journal/restore on live runs | **P6** guard, **P8** history, **P3** trash/restore |
+| 7 | a content hash identifies the file's bytes, so matching hashes mean a duplicate | the hash is client-writable: one hash on all 21 Suryodaya files, 16- and 64-character hashes mixed on Keystone, and since 23 Sept 14 hash values shared by an original and its copy (bug **B4**) | `find_duplicates` distrusts a hash shared by different names or sizes; a name + size match is only a suspicion and is escalated; never "byte-verified" | **P10:** server-side hashes |
+
+The Step 3 report's seventh gap, other apps' data showing through (83 e-sign titles and 92 notices; bugs **F1**, **F2**, re-filed as **B20**, **B21**), is under platform work in the updated report: see the P5 row in [4.4](#44-platform-work-we-asked-for-q2-platform-work). The agent's answer is unchanged: the leak guard, and it never reads `Notification` or `/api/search`.
 
 ### 4.4 Platform work we asked for (Q2 "platform work")
 
-These are the six requests in the one-page report. The plan's full list of 13 (P1–P13), with how to build each one, is in [4.7](#47-platform-change-requests-p1p13).
+These are the eight requests in the one-page report. The plan's full list of 13 (P1–P13), with how to build each one, is in [4.7](#47-platform-change-requests-p1p13).
 
 | Request in the report | Plan id | What the agent does until then |
 |---|---|---|
@@ -529,14 +541,16 @@ These are the six requests in the one-page report. The plan's full list of 13 (P
 | Wire Drive to design review's release flow | P2 | infers "current" from three editable signals and reports conflicts |
 | Trash/restore for rows without revisions (not delete) | P3 | refuses delete; would archive a hash-matched duplicate and escalate its removal. Since 23 Sept no hash on the scenario files is trusted, so the PO "(1)" files are escalated as suspected duplicates instead (live: only the original "(1)", 82f83d94) |
 | An `expect_updated_at` guard on file updates | P6 | **copies it on the client side:** re-read and compare `updated_at` before every write. It can't close the gap between that read and the write. |
-| Gate `FileAttachment`, `Notification` and search by the owning app | P5 | the leak guard hides e-sign rows after they arrive |
+| Gate `FileAttachment`, `Notification` and search by the owning app | P5 | the leak guard hides e-sign rows after they arrive. The board marks this fixed (N179, N180); it did not hold on 25 Sept (B20, B21) |
+| Merge the 23 Sept Drive repair copies back into the originals | P12 | pre-flight warns about the 9 Incoming copies; the live run neither writes nor escalates them; two same-named files are never filed into one folder (B18) |
 | A document-type custom field, and Automations access | P7 | filing rules kept as data in `agent/filing_rules.toml` (A14) |
+| Make the `AgentTask` scheduler execute runs, time out stuck ones, and reject schedules it can't parse | P7 (scheduling) | not used: scheduled triage is not built (A13); bugs B11, B12 |
 
 ### 4.5 What our agent can do that theirs can't (Q3)
 
 | Claim | How | Proof | Honest limit |
 |---|---|---|---|
-| **1. Work against a platform that contradicts itself** | `drive_overview` reads the overview and the record list, reports both numbers and the reason, and says which it used. Every skill reads files through the record API. | C1 (22 Sept: 0 vs 15 in folders; since 23 Sept: 15 vs 30) | The Drive screen itself is not queried; the overview endpoint stands in for it. |
+| **1. Cross-check surfaces instead of trusting one** | `drive_overview` reads the overview and the record list, reports both numbers and the reason, and says which it used. Every skill reads files through the record API. | C1 (22 Sept: 0 vs 15 in folders; since 23 Sept: 15 vs 30) | The Drive screen itself is not queried; the overview endpoint stands in for it. The report's "search still returns 5 of 32 file matches" is a live measurement of 25 Sept; no task checks it. |
 | **2. Refuse with evidence** | Refusal is a rule in code (the triage thresholds). Each refusal lists what is missing and, when the records name someone, who to ask. In apply mode each refused file in scope gets exactly one escalation, even across re-runs. | R1–R5, TI1–TI3, TI2L | For R1–R3 and R5 the real model must choose the refusal skill; only the scripted model routes by fixed rules. Escalations are unassigned (Keystone has no assignees). |
 | **3. Catch a write that lands on ours** | A re-read after every write. A change that didn't stick is reported **FAILED**, and the other seat's value is left standing. A row changed before our write is **SKIPPED**. | TI5, TI4 | Detection, not prevention. Without a server guard (P6), a change landing *between* our re-read and our write is overwritten unseen. |
 
@@ -770,10 +784,11 @@ All 9 original files are tagged `untriaged` and are not archived. 7 of the 9 hav
 
 ### 5.6 Bugs raised
 
-- **When and how.** All 13 were filed on **22 Sept 2026** through `POST /api/bug-report`. Every filing returned HTTP 201 with `delivery: local`: the report was saved on the platform, with no GitHub issue. On 22 Sept every report had status **`new`**.
+- **When and how.** The first 13 were filed on **22 Sept 2026** through `POST /api/bug-report`. Every filing returned HTTP 201 with `delivery: local`: the report was saved on the platform, with no GitHub issue. On 22 Sept every report had status **`new`**.
 - **Checking them.** Use the MCP tool `BugReport.list` (or `BugReport.get` for the full text), or `GET /api/bug-report/mine`.
 - **Don't file them again**, or you'll create duplicates.
-- **Since then (27 Sept 2026, read live):** 45 bug reports exist for this seat (Keystone 31, Suryodaya 14), all still status `new`. The table below lists only the 13 of 22 Sept; PR #2 adds the later ones to `docs/gap_report.md`. Check `BugReport.list` before filing anything new.
+- **Since then:** 32 more were filed on 24–25 Sept (second table). On 27 Sept 2026 (read live with `BugReport.list`) this seat had **45** reports (Keystone 31, Suryodaya 14), all still status `new`. Check `BugReport.list` before filing anything new.
+- **On the class bug board:** 12 of the first 13 are listed as N179–N190 (for example F1 = N179, F2 = N180, F3 = N182, L8 = N185, F5 = N186); L3 duplicated Team 4's N144. Three of those fixes (N179, N180, N186) did not hold on 25 Sept and were re-filed as B20–B22.
 
 | Id | Severity | Filed on | Bug | Report id | How the agent works around it |
 |---|---|---|---|---|---|
@@ -791,15 +806,52 @@ All 9 original files are tagged `untriaged` and are not archived. 7 of the 9 hav
 | L7 🐞 | Note | Keystone (also seen on Suryodaya) | One API operation ID shared by four methods | `f66032c1-9d63-4f0e-a64d-f9f8dd6a02aa` | no effect (tools come from `tools/list`, not OpenAPI) |
 | L8 🐞 | Minor | Keystone | The Drive access log is written by the browser, not the server | `b086167d-3ef6-4fe1-9cbf-42264e0869c1` | the uploader in the log is a lead, never proof (`uploader_of` in `agent/skills/common.py`) |
 
+**Filed on 24–25 Sept 2026** (32 reports; numbered B1–B32 as in the gap report's list, which Tanmay compiled in PR #2). Severity is shown only where the report states one.
+
+| Id | Severity | Business | Filed | Bug | Report id | How the agent works around it |
+|---|---|---|---|---|---|---|
+| B1 🐞 | — | Keystone (also Suryodaya) | 24 Sept | MCP list tools advertise filter defaults that return 0 rows | `192a52b8-3840-4a14-8c54-4d8cb0323cda` | the skills send only exact, comma-free filters plus `limit`/`offset` (`list_all` in `agent/safe_reads.py`); the model's own direct `.list` calls are passed through as they are |
+| B2 🐞 | — | Keystone (also Suryodaya) | 24 Sept | Search treats `%` and `_` as wildcards | `43cbed22-69cc-4dc1-9284-cff64d2b8f1b` | the skills never send `search`; they filter names in code |
+| B3 🐞 | — | Keystone (also Suryodaya) | 24 Sept | Every Drive revision download returns 409 | `d4517000-6e5e-4aab-b0a4-006457ae172d` | never downloads; `file_contents` refuses and lists what the record holds (R3) |
+| B4 🐞 | — | **Suryodaya** (also Keystone) | 24 Sept | `content_hash` does not identify content | `8e468c1b-93c0-463e-9009-3d3b283aa573` | `find_duplicates` distrusts any hash shared by different names or sizes and never says "byte-verified" (DU1) |
+| B5 🐞 | — | **Suryodaya** (also Keystone) | 24 Sept | Unparseable filter values return 0 instead of 400 | `6ea99771-3c95-4c53-8651-56d5caf4877e` | `list_all` never sends `gt:`, `lt:` or `ne:` values |
+| B6 🐞 | — | Keystone (also Suryodaya) | 24 Sept | Date-only filters compared as text against timestamps | `6b23e10f-115d-4d1a-801a-e749a464f20d` | never sends a date filter |
+| B7 🐞 | — | **Suryodaya** (also Keystone) | 24 Sept | API agent sessions recorded as anonymous | `828f5def-114e-407b-b8a9-318e2a0cd66a` | sessions carry the `actor_label` "Files Agent (team20)" (A7) |
+| B8 🐞 | — | **Suryodaya** (also Keystone) | 24 Sept | AgentProvider accepts out-of-range settings, with two defaults | `41c1dbf3-abbe-4a46-98f8-c37c45be0a2f` | not used (the agent calls its model directly) |
+| B9 🐞 | — | **Suryodaya** (also Keystone) | 24 Sept | MCP enums omit values the server writes | `174a5bb4-15ff-483c-adce-1ad166bdf391` | no effect: the agent never filters on those status values |
+| B10 🐞 | — | Keystone | 24 Sept | Keystone AccountPlan rows missing their required links | `aa2a5403-552a-4356-b2e8-ffad8f97bd59` | not used |
+| B11 🐞 | — | **Suryodaya** | 24 Sept | Scheduled tasks count runs that produce nothing | `46a4c0e6-bccc-4f4d-aa3a-cf6964dcfff7` | not used (scheduled triage is not built, A13) |
+| B12 🐞 | — | **Suryodaya** | 24 Sept | AgentTask schedules not validated | `cd16012b-ca54-435e-8fa3-bf89516f6a80` | not used (A13) |
+| B13 🐞 | — | **Suryodaya** (also Keystone) | 24 Sept | SalesOrder.list advertises computed totals as filters, then refuses them | `d001977c-ad30-47f3-b7e7-95a6a5c41a97` | not used |
+| B14 🐞 | High | **Suryodaya** | 24 Sept | Agent daily token counter never resets | `a1ae4a9b-1005-41a9-a4a8-ce3921f0008a` | not used (the agent is not a platform persona) |
+| B15 🐞 | Medium | Keystone | 24 Sept | Job ledger and mission control tools show jobs the seat's AgentJob access refuses | `5abc24c7-d5c2-459a-b94e-269de65247c8` | not used |
+| B16 🐞 | Low | Keystone | 24 Sept | `tools.search` tags most Drive tools as module `core` | `75f45f3a-7ad1-4582-9aee-04ae1f1406d5` | the skills find their tools by exact name from `tools/list` (`agent/catalog.py`, `agent/config.py`) |
+| B17 🐞 | Low | **Suryodaya** | 24 Sept | Suryodaya people directory lists companies as employees | `ac4fb1ea-f6fb-404f-a3ed-34d4836c6dd1` | not used (A9) |
+| B18 🐞 | High | Keystone | 25 Sept | The Keystone Drive repair (N182 fix) duplicated all 15 scenario files as bare copies | `f6d1dfdc-1e9a-4ddd-8e71-aa5b507c769c` | pre-flight warns about the 9 Incoming copies; the live run neither writes nor escalates them (scope rule); two same-named files are never filed into one folder (same-name rule). See the note at the top of section 5 |
+| B19 🐞 | Medium | Keystone | 25 Sept | The same repair re-wrote five Drive access-log events with 23 Sep dates | `7545038f-15fb-411d-a121-468d748e6014` | the uploader from the log is a lead, never proof (as L8) |
+| B20 🐞 | High | Keystone | 25 Sept | N180 not in effect: e-sign attachments still listed, titled and writable | `bba655a6-6f2b-435e-a3b2-d5023fb6a5c3` | leak guard, as F2. "Writable" means the rows declare `_permissions.write = true`; no write was attempted |
+| B21 🐞 | Medium | Keystone | 25 Sept | N179 not in effect on Keystone: other people's notifications visible | `ca64133f-2bd7-4c01-8586-19f7c1ee6a39` | never reads `Notification`, as F1 |
+| B22 🐞 | Low | Keystone | 25 Sept | Global search still 5 per type; `limit` and `offset` ignored (N186 partial) | `46ace9e3-04d5-45f0-bb55-20d2b93067a4` | never uses `/api/search`, as F5 |
+| B23 🐞 | Low | **Suryodaya** | 25 Sept | Suryodaya storefront publishes a ₹0 "test" product | `00ce75cd-167b-49a1-9945-b9738df17cbe` | not used |
+| B24 🐞 | Low | Keystone | 25 Sept | `endpoint.inventory.shipping_board` offered to seats that can never use it | `25071f1a-94a2-4dcd-b7e2-d301a634603a` | not used |
+| B25 🐞 | — | Keystone | 25 Sept | Keystone goals: company-wide goals stay at 0, and "new opportunities" counts deals by close date | `cd791408-ac3d-4e71-9e8a-7370086da7eb` | not used |
+| B26 🐞 | — | Keystone | 25 Sept | Keystone account plans: the endpoint says no read permission, while REST and MCP return all 20 | `02923400-876c-409d-a640-4d38ff69e00b` | not used |
+| B27 🐞 | Medium | Keystone | 25 Sept | `endpoint.make.orders` never marks a line late | `a454db2e-6357-4ce4-a19b-bb7688d77ff7` | not used |
+| B28 🐞 | Low | Keystone | 25 Sept | `endpoint.make.orders` stops at 200 rows with no paging | `e08e6517-0da3-4551-b714-1ae8f94c3604` | not used |
+| B29 🐞 | Medium | Keystone | 25 Sept | `endpoint.manufacturing.demand_forecast` drops overdue open orders | `26876a42-ed44-4757-a704-3502276b78ed` | not used |
+| B30 🐞 | Medium | **Suryodaya** | 25 Sept | `endpoint.mission_control.staffing_forecast` measures service time on instantly failed jobs | `68adc788-edc3-4817-8721-de9419075ff1` | not used |
+| B31 🐞 | Low | **Suryodaya** | 25 Sept | `supplier_scorecard` reports "insufficient history" and zero orders when it was denied the data | `c45fdf5e-03f7-41de-bf25-5a5ebe08e26b` | not used |
+| B32 🐞 | Low | Keystone | 25 Sept | Keystone access log records a share of J-BRKT-04 Rev C that exists nowhere | `372c34f5-c6df-49f4-afdb-6e5f864ee5e6` | `find_drawing` never reads shares; the log is a lead, never proof |
+
 **Found but not raised**
 
 *Suspected, untested.* Each needs a write to prove, so none was tried:
 - the built-in chat agent bypassing the app gate;
 - `/api/agent/chat` accepting a caller-supplied `tool_policy_id`;
-- the "writable" e-sign attachments in F2 (the rows declare `_permissions.write = true`; no write was attempted);
+- the "writable" e-sign attachments in F2 and B20 (the rows declare `_permissions.write = true`; no write was attempted);
 - **new:** `AgentSession.create` accepts client-set `actor_kind`, `actor_user_id`, `actor_label`, `actor_roles` and `tool_policy_id`. The 22 Sept tool schema lists all five. Staff question Q7 asks whether to report it. Our agent sets only `title` and `actor_label`, plus `actor_kind` if you set `AS_ACTOR_KIND`.
 
-*Ask staff first:* every Suryodaya download returns `409 Revision bytes are unavailable`. This may be on purpose (seed data without file bytes).
+*Filed later after all:* every Drive revision download returns `409 Revision bytes are unavailable` (B3, 24 Sept). It may still be on purpose (seed data without file bytes).
 
 *Checked, and not raised because staff would likely reject them:*
 
@@ -811,7 +863,7 @@ All 9 original files are tagged `untriaged` and are not archived. 7 of the 9 hav
 | Share tokens and password hashes can be used as filters | 0 shares exist on either business, so nothing can be shown |
 | No ETag / `If-Match` on updates | A missing feature, not a defect; it is platform request P6 |
 | Shared, writable agent memory and session rows | Close to the brief's known "shared book" item |
-| The access log disagrees with the share list | Seeded rows, not a system defect |
+| The access log disagrees with the share list | Seeded rows, not a system defect (a share of J-BRKT-04 Rev C that exists nowhere was filed later, 25 Sept, as B32) |
 
 ---
 
@@ -831,7 +883,7 @@ The Step 4 brief: build the agent, then the harness. The agent answers your seat
 | **Harness** | **Your own loop.** Checks **read the database, not the agent's prose.** **Every run is written to disk before it is scored** | `python -m harness run …`. `harness/runner.py` writes `runs/<set>/<task>/<n>.jsonl` first; then `harness/score.py` scores it with the checks in `harness/verifiers.py`. 21 tasks in `harness/tasks/*.toml` | ✅ built · 👤 the task expectations are AI-written drafts that you must review and own |
 | **A refusal task** | At least one task where refusing is the right answer | R1 (payslips), R2 (delete, ambiguous), R3 (file contents), R4 (`Untitled.pdf`), R5 (delete by id). TI1–TI3 also refuse or escalate 13 files offline (4 originals, 9 copies), and TI2L 4 originals | ✅ |
 | **Tests** | Written **by hand**. "A test written by Claude or Codex scores zero." 10 points per test | `tests/` (today it holds only `tests/README.md`). Run: `python -m unittest discover -s tests` | ⛔ not written · 👤 |
-| **Step 3 claims** | Each Q3 claim in the one-page gap report has a harness task that proves it | Claim 1 → C1 · claim 2 → R1–R5, TI1–TI3 and TI2L (TI2 and TI2L escalate `scan0042.pdf`, the report's example) · claim 3 → TI4 (a row changed *before* our write) and TI5 (changed right *after* it) | ✅ offline. C1 and R3 also passed live on 22 Sept, before the data change (scripted model, ×1) |
+| **Step 3 claims** | Each Q3 claim in the one-page gap report has a harness task that proves it | Claim 1 → C1 (the updated report's figures, 15 files / 13 KB on the Drive overview against 30 rows / 7.1 MB in folders, match C1 and the 26 Sept fixture) · claim 2 → R1–R5, TI1–TI3 and TI2L (TI2 and TI2L escalate `scan0042.pdf`, the report's example) · claim 3 → TI4 (a row changed *before* our write) and TI5 (changed right *after* it) | ✅ offline. C1 and R3 also passed live on 22 Sept, before the data change (scripted model, ×1) |
 | **Bugs** | 100 points per real bug | 13 bugs (F1–F5, L1–L8), raised on 22 Sept 2026; 45 for this seat by 27 Sept (see [5.6](#56-bugs-raised)). The gap report is [`docs/gap_report.md`](docs/gap_report.md) | 🐞 raised · ⛔ the re-check (T6.4) is not done |
 
 **Ground rules**
@@ -1783,7 +1835,7 @@ harness/
   tasks/                  TEAM-OWNED task files (21) + routes.toml
   fixtures/               captured data (sanitised): keystone/2026-09-22, keystone/2026-09-26, suryodaya/2026-09-22
 tests/                    YOUR hand-written tests (guide only for now)
-docs/                     gap_report.md (the submitted Step 3 report; everything else is in this README)
+docs/                     gap_report.md (the one-page gap report, updated 27 Sept; the Step 3 submission is tag step3-submitted)
 runs/                     run output (git-ignored)
 ```
 
