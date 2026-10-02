@@ -976,16 +976,16 @@ These are **yours**. Keep them offline, fast and repeatable (no live platform, n
 
 | Id | Task | Owner | Done when | Status now | Where |
 |---|---|---|---|---|---|
-| T5.1 | Revision parser: letters, numbers, `AA > Z`, `Rev10 > Rev2`, ambiguous names | 👤 You | Your tests pass, and fail if revisions are sorted as plain text | ⛔ not written | `tests/` → `agent/skills/revisions.py` |
-| T5.2 | Evidence scoring: each file → tier; a description alone never files; a disagreeing description → conflict | 👤 You | …and fail if a description alone may choose the folder | ⛔ not written | `agent/skills/triage.py`, `agent/filing_rules.toml` |
-| T5.3 | Duplicates: hash match; a hash shared by unrelated files is rejected; name + size fallback; never "byte-verified" | 👤 You | …and fail if a hash shared by many files is trusted | ⛔ not written | `agent/skills/duplicates.py` |
-| T5.4 | Guards: a write outside the allow-list is blocked; plan-only writes nothing; a read-only field is refused; a stale row is skipped; a failed confirm still records the write; restore leaves another team's change alone | 👤 You | …and fail if every id is allowed | ⛔ not written | `agent/guards.py`, `agent/snapshot.py` |
-| T5.5 | MCP client: an error inside an HTTP-200 reply raises; `isError` raises; `401` → one re-login | 👤 You | …and fail if HTTP 200 counts as success without checking for an error inside | ⛔ not written | `agent/mcp_client.py`, `agent/auth.py` |
-| T5.6 | Safe reads: the `ne:`, comma and sort-order traps are avoided | 👤 You | …and fail if `ne:` is sent to the server | ⛔ not written | `agent/safe_reads.py` |
-| T5.7 | Verifiers: each check fails on a deliberately broken run | 👤 You | …and fail if a verifier always returns ok | ⛔ not written | `harness/verifiers.py` |
-| T5.8 | Idempotency: a second tidy makes no writes and no new escalations | 👤 You | …and fail if the "already escalated?" check is skipped | ⛔ not written | `agent/skills/triage.py`, `agent/skills/escalate.py` |
-| T5.9 | Redaction: a trace of login + a call contains no secret | 👤 You | …and fail if redaction is turned off | ⛔ not written | `agent/redact.py`, `agent/trace.py` |
-| T5.10 | Budget: an endless loop stops at the cap; a write never starts without budget for its confirming read | 👤 You | …and fail if the cap is removed | ⛔ not written | `agent/budget.py`, `agent/guards.py` |
+| T5.1 | Revision parser: letters, numbers, `AA > Z`, `Rev10 > Rev2`, ambiguous names | 👤 You | Your tests pass, and fail if revisions are sorted as plain text | ✅ 8 tests in `tests/test_revisions.py`, passing 2 Oct 2026 | `tests/` → `agent/skills/revisions.py` |
+| T5.2 | Evidence scoring: each file → tier; a description alone never files; a disagreeing description → conflict | 👤 You | …and fail if a description alone may choose the folder | ✅ 5 scoring tests in `tests/test_triage.py`, passing 2 Oct 2026 | `agent/skills/triage.py`, `agent/filing_rules.toml` |
+| T5.3 | Duplicates: hash match; a hash shared by unrelated files is rejected; name + size fallback; never "byte-verified" | 👤 You | …and fail if a hash shared by many files is trusted | ✅ 5 tests in `tests/test_duplicates.py`, passing 2 Oct 2026 | `agent/skills/duplicates.py` |
+| T5.4 | Guards: a write outside the allow-list is blocked; plan-only writes nothing; a read-only field is refused; a stale row is skipped; a failed confirm still records the write; restore leaves another team's change alone | 👤 You | …and fail if every id is allowed | ✅ 12 tests (8 guard + 4 restore) in `tests/test_guards.py`, passing 2 Oct 2026 | `agent/guards.py`, `agent/snapshot.py` |
+| T5.5 | MCP client: an error inside an HTTP-200 reply raises; `isError` raises; `401` → one re-login | 👤 You | …and fail if HTTP 200 counts as success without checking for an error inside | ✅ 8 tests (6 client + 2 login) in `tests/test_mcp_client.py`, passing 2 Oct 2026 | `agent/mcp_client.py`, `agent/auth.py` |
+| T5.6 | Safe reads: the `ne:`, comma and sort-order traps are avoided | 👤 You | …and fail if `ne:` is sent to the server | ✅ 4 tests in `tests/test_safe_reads.py`, passing 2 Oct 2026 | `agent/safe_reads.py` |
+| T5.7 | Verifiers: each check fails on a deliberately broken run | 👤 You | …and fail if a verifier always returns ok | ✅ 7 broken/fixed pairs in `tests/test_verifiers.py`, passing 2 Oct 2026 | `harness/verifiers.py` |
+| T5.8 | Idempotency: a second tidy makes no writes and no new escalations | 👤 You | …and fail if the "already escalated?" check is skipped | ✅ 3 tests (first-pass counts, second-pass silence, dedup) in `tests/test_triage.py`, passing 2 Oct 2026 | `agent/skills/triage.py`, `agent/skills/escalate.py` |
+| T5.9 | Redaction: a trace of login + a call contains no secret | 👤 You | …and fail if redaction is turned off | ✅ 4 tests in `tests/test_redact.py`, passing 2 Oct 2026 | `agent/redact.py`, `agent/trace.py` |
+| T5.10 | Budget: an endless loop stops at the cap; a write never starts without budget for its confirming read | 👤 You | …and fail if the cap is removed | ✅ 5 tests in `tests/test_budget.py`, passing 2 Oct 2026 | `agent/budget.py`, `agent/guards.py` |
 
 #### Phase 6 — Evaluate and submit (1.5 days)
 
@@ -1025,7 +1025,7 @@ Phase 5 has no milestone of its own: the plan spreads it across M1–M5. It is s
 | Must | A8 undo log and clobber check | 🟡 checks, notes, snapshot, write journal and restore are built; restore not yet run live |
 | Must | A9 routed escalation | ✅ built · live check pending (T2.10); escalations are unassigned |
 | Must | Tasks D1–D3, TI1–TI4, R1–R4, C1 | ✅ 5/5 each offline (scripted model) |
-| Must | Tests T5.1–T5.10 | ⛔ not written · 👤 (add tests for the new pre-flight, scope and same-name rules too) |
+| Must | Tests T5.1–T5.10 | ✅ 78 tests passing 2 Oct 2026 (T5.1–T5.10 plus `tests/test_decisions.py` for the pre-flight, scope and same-name rules and `tests/test_tasks_loader.py`) · 👤 rerun straight after the fixture re-capture and update any changed numbers in the same commit |
 | Must | pass^5 offline | 🟡 21/21 with the scripted model (27 Sept 2026); the real model not run |
 | Must | One live pass of the read-only tasks | ✅ 10/10 ×1, scripted model, 22 Sept 2026, before the data change · the real model not run |
 | Must | One live write run with snapshot and restore (plan: TI2 then TI3) | ⛔ not run; now planned as a single **TI2L** run (TI2 is offline-only since 27 Sept) |
