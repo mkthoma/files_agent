@@ -330,7 +330,7 @@ An agent that "looks right" once proves nothing. The harness asks each question 
 | `harness/fake_server.py` | A pretend AgentSwitch built from the fixture. It answers login, `/api/auth/me` and MCP **in the same format** as the real one, but it is a simplified copy: list filters are plain equality (the real platform's filter traps are not reproduced) and any login works. It changes only memory, keeps its own write log, and can inject faults. |
 | `harness/runner.py` | Runs tasks as in 3.2. |
 | `harness/manifest.py` | The run-file header: task, model, git commit, tool hash, fixture hash, user id, allow-list, time. |
-| `harness/preflight.py` | Before a live write: are the tools unchanged, and are the 9 allow-listed files in Incoming, unchanged since the fixture and still tagged `untriaged`? Any of that failing is a **problem** and stops the run. Any other row in Incoming that the fixture knows and that hasn't changed is a **warning** (printed and traced, not blocking); an unknown or changed extra is a problem. So is a row in any folder that is new, changed or gone since the fixture and shares a name or recorded hash with one of the 9. |
+| `harness/preflight.py` | Before a live write: are the tools unchanged, and are the 9 allow-listed files in Incoming, unchanged since the fixture and still tagged `untriaged`? Any of that failing is a **problem** and stops the run. Any other row in Incoming that the fixture knows and that hasn't changed is a **warning** (printed and traced, not blocking); an unknown or changed extra is a problem. So is a row in any folder that is new, changed or gone since the fixture and shares a name, a recorded hash or a document kind (doc type, or drawing code prefix) with one of the 9, and so is any folder that is new, gone, renamed or moved. |
 | `harness/verifiers.py` | The judge. It reads only the run file. |
 | `harness/score.py` | Score, `report.md`, pass^k, missing runs counted as failed, rescore. |
 | `harness/calibrate.py` | Tests the tester (3.7). |
@@ -1603,15 +1603,18 @@ extra = FakeServer.from_fixture("keystone", None, extra_files=[{"filename": "new
 print("unknown extra:", preflight.check(build("keystone", "fake", "plan", None, transport=extra), fixture))
 elsewhere = FakeServer.from_fixture("keystone", None, extra_files=[{"filename": "Cert_MillCert_SS304_Heat90114.pdf", "folder": "Quality"}])
 print("same name in Quality:", preflight.check(build("keystone", "fake", "plan", None, transport=elsewhere), fixture))
+kind = FakeServer.from_fixture("keystone", None, extra_files=[{"filename": "MillCert_A36_Heat70.pdf", "folder": "Purchasing", "tags": ""}])
+print("same kind in Purchasing:", preflight.check(build("keystone", "fake", "plan", None, transport=kind), fixture))
 ```
 Output (27 Sept, 26 Sept fixture):
 ```text
 unchanged: [] ; 9 warnings, e.g. W9_JMillerWelding_2026.pdf (20d633ba-251f-494a-974d-e83d5e9d0695) is in Incoming but outside the write allow-list: it will not be written or escalated
 drifted: ['missing tool DriveAccessLog.list', 'tool catalogue changed (fixture c10a009a80de46c6, live 97c1058771f8a313): re-capture fixtures', 'W9_JMillerWelding_2026.pdf changed since the fixture (updated_at 2026-09-27T…)']
 unknown extra: ["52723a65-f91b-56ad-992f-c3411125b9b7 is not in the fixture (outside the allow-list, but the live expectations assume the fixture's Incoming)"]
-same name in Quality: ['Cert_MillCert_SS304_Heat90114.pdf (af68a7db-b02b-5802-ae4c-8386153cbbb2) is new or changed since the fixture and shares a name or hash with an allow-listed file']
+same name in Quality: ['Cert_MillCert_SS304_Heat90114.pdf (af68a7db-b02b-5802-ae4c-8386153cbbb2) is new or changed since the fixture and is related to an allow-listed file (name, hash or document kind)']
+same kind in Purchasing: ['MillCert_A36_Heat70.pdf (d09988d8-6e1f-5103-a082-9c4815eb3ff0) is new or changed since the fixture and is related to an allow-listed file (name, hash or document kind)']
 ```
-The 9 copies are known to the fixture and unchanged, so they are only warnings; the made-up `new_upload.pdf` is unknown, so it is a problem. A new file outside Incoming matters only if it shares a name or recorded hash with one of the 9, as the made-up mill cert in Quality does. `preflight.check` returns only the problems; `preflight.assess` returns problems and warnings.
+The 9 copies are known to the fixture and unchanged, so they are only warnings; the made-up `new_upload.pdf` is unknown, so it is a problem. A new file outside Incoming matters only if it is related to one of the 9: it shares a name or recorded hash (the made-up mill cert in Quality), or it is the same kind of document (the made-up mill cert in Purchasing: three of those are enough to turn the real mill cert's move to Quality into a conflict, because the similar-file signal counts every mill cert in the drive). Drawings count as the same kind when they share a code prefix. A folder that is new, gone, renamed or moved is a problem too. `preflight.check` returns only the problems; `preflight.assess` returns problems and warnings. (The "same kind" and folder checks were added on 2 Oct 2026; before that, pre-flight passed while three new mill certs in Purchasing changed the plan.)
 
 ---
 
