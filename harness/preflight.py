@@ -7,9 +7,12 @@ leaves it for a person), so it is a WARNING, not a reason to refuse, provided th
 fixture already knew it and it has not changed since. An unknown or changed extra
 stays a PROBLEM: duplicate grouping reads every file, so a new row could change how
 the 9 are judged and the live expectations would no longer hold. For the same reason,
-a row ANYWHERE that is new, changed or gone since the fixture and shares a name (as
-duplicate grouping compares names) or a recorded hash with one of the 9 is a PROBLEM,
-and so is a fixture row that has left Incoming.
+a row ANYWHERE that is new, changed or gone since the fixture is a PROBLEM if it is
+related to one of the 9: it shares a name (duplicate grouping compares names) or a
+recorded hash, or it is the same kind of document (the similar-file signal counts
+every file of that doc type, or every drawing with that code prefix). A fixture row
+that has left Incoming is a PROBLEM, and so is any folder added, removed, renamed or
+moved, because folder names feed the description and default-folder signals.
 """
 from __future__ import annotations
 
@@ -19,6 +22,8 @@ from typing import Any
 from agent.config import KEYSTONE_INCOMING_ALLOWLIST, WRITE_BUSINESS
 from agent.safe_reads import folder_named, folders_by_id, list_all
 from agent.skills.duplicates import stem
+from agent.skills.profiles import doc_type_of
+from agent.skills.revisions import code_prefix, part_code
 
 
 class PreflightFailed(Exception):
@@ -47,7 +52,9 @@ def assess(rt: Any, fixture: dict[str, Any]) -> tuple[list[str], list[str]]:
         problems.append("the fixture manifest has no tool hash: re-capture fixtures")
     elif fixture_hash != rt.catalog.hash():
         problems.append(f"tool catalogue changed (fixture {fixture_hash}, live {rt.catalog.hash()}): re-capture fixtures")
-    incoming = folder_named(folders_by_id(rt.admin_mcp), "Incoming")
+    folders = folders_by_id(rt.admin_mcp)
+    problems += _folder_drift(folders, fixture["tables"].get("DriveFolder", []))
+    incoming = folder_named(folders, "Incoming")
     if not incoming:
         return problems + ["no Incoming folder"], warnings
     live_rows = {r["id"]: r for r in list_all(rt.admin_mcp, "FileAttachment.list", folder_id=incoming["id"])}
@@ -71,12 +78,21 @@ def assess(rt: Any, fixture: dict[str, Any]) -> tuple[list[str], list[str]]:
 def _outside_incoming(rt: Any, baseline: dict[str, dict[str, Any]], live_rows: dict[str, dict[str, Any]],
                       required: frozenset[str], incoming_id: str) -> list[str]:
     """Changes elsewhere that can still change how the allow-listed files are judged."""
+    rules = rt.ctx.rules
     watched = [baseline[i] for i in required if i in baseline]
     names = {stem(r.get("filename", "")) for r in watched}
     hashes = {r["content_hash"] for r in watched if r.get("content_hash")}
+    kinds = [(r.get("filename", ""), doc_type_of(r.get("filename", ""), rules)) for r in watched]
+    types = {t.name for _, t in kinds if t and t.name != "drawing"}
+    prefixes = {code_prefix(c) for f, t in kinds if t and t.name == "drawing" and (c := part_code(f))}
 
     def related(row: dict[str, Any]) -> bool:
-        return stem(row.get("filename", "")) in names or row.get("content_hash") in hashes
+        filename = row.get("filename", "")
+        if stem(filename) in names or row.get("content_hash") in hashes:
+            return True
+        if (t := doc_type_of(filename, rules)) and t.name in types:
+            return True
+        return bool((c := part_code(filename)) and code_prefix(c) in prefixes)
 
     everywhere = {r["id"]: r for r in list_all(rt.admin_mcp, "FileAttachment.list")}
     problems = []
@@ -86,15 +102,29 @@ def _outside_incoming(rt: Any, baseline: dict[str, dict[str, Any]], live_rows: d
         if base.get("folder_id") == incoming_id:
             problems.append(f"{base.get('filename')} ({file_id}) has left Incoming since the fixture")
         elif related(base) and file_id not in everywhere:
-            problems.append(f"{base.get('filename')} ({file_id}) is gone since the fixture and shares a name or hash "
-                            "with an allow-listed file")
+            problems.append(f"{base.get('filename')} ({file_id}) is gone since the fixture and is related "
+                            "to an allow-listed file (name, hash or document kind)")
     for file_id, row in sorted(everywhere.items()):
-        if file_id in required or file_id in live_rows or not related(row):
+        if file_id in required or file_id in live_rows:
             continue
         base = baseline.get(file_id)
+        if not (related(row) or (base is not None and related(base))):
+            continue
         if base is None or any(row.get(k) != base.get(k) for k in ("updated_at", "folder_id")):
-            problems.append(f"{row.get('filename')} ({file_id}) is new or changed since the fixture and shares a name "
-                            "or hash with an allow-listed file")
+            problems.append(f"{row.get('filename')} ({file_id}) is new or changed since the fixture and is related "
+                            "to an allow-listed file (name, hash or document kind)")
+    return problems
+
+
+def _folder_drift(live: dict[str, dict[str, Any]], fixture_folders: list[dict[str, Any]]) -> list[str]:
+    base = {f["id"]: f for f in fixture_folders}
+    if not base:
+        return ["the fixture has no DriveFolder table: re-capture fixtures"]
+    problems = [f"folder {live[i].get('name')!r} ({i}) is new since the fixture" for i in sorted(set(live) - set(base))]
+    problems += [f"folder {base[i].get('name')!r} ({i}) is gone since the fixture" for i in sorted(set(base) - set(live))]
+    for i in sorted(set(live) & set(base)):
+        if any(live[i].get(k) != base[i].get(k) for k in ("name", "parent_id", "is_archived")):
+            problems.append(f"folder {base[i].get('name')!r} ({i}) was renamed, moved or archived since the fixture")
     return problems
 
 
