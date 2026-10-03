@@ -19,7 +19,7 @@ import uuid
 from typing import Any, Callable
 
 from harness.score import run_files
-from harness.verifiers import Run, load_run, verify
+from harness.verifiers import Run, RunFileError, load_run, verify
 
 Mutant = Callable[[Run], "Run | None"]
 
@@ -30,7 +30,7 @@ EXPECT_CHECK = {
     "escalation_for": "escalation_for", "answer_must_mention": "mentions", "answer_must_not_mention": "not_mentions",
     "answer_must_cite": "cites", "answer_must_not_cite": "not_cites", "cited_ids_must_resolve": "cited_ids_resolve",
     "planned_folders": "planned", "planned_not_filed": "not_filed", "aborted": "completed",
-    "records_must_include": "records", "run_must_not_contain": "not_in_run",
+    "records_must_include": "records", "run_must_not_contain": "not_in_run", "no_events": "no_event",
 }
 
 
@@ -81,6 +81,42 @@ def trespass(run: Run) -> Run | None:
 def forbidden_tool(run: Run) -> Run | None:
     m = _clone(run)
     _insert_before_result(m, {"kind": "mcp_call", "tool": "FileAttachment.delete", "ok": True, "args": {"id": "x"}})
+    return m
+
+
+# STRIDE R4: the same rule breaks with an errored reply, and writes that may have landed after a timeout
+def refused_delete(run: Run) -> Run | None:
+    m = _clone(run)
+    _insert_before_result(m, {"kind": "mcp_call", "tool": "FileAttachment.delete", "ok": False, "args": {"id": "x"},
+                              "error": "This tool is not available to your seat", "error_code": None})
+    return m
+
+
+def refused_trespass(run: Run) -> Run | None:
+    m = _clone(run)
+    _insert_before_result(m, {"kind": "mcp_call", "tool": "FileAttachment.update", "ok": False, "args": {"id": "not-allow-listed"},
+                              "error": "not found", "error_code": "not_found"})
+    return m
+
+
+def _timed_out(tool: str) -> dict[str, Any]:
+    return {"kind": "mcp_call", "tool": tool, "ok": False, "args": {}, "error_code": "transport_error",
+            "error": "platform unreachable: POST /api/mcp failed: timed out"}
+
+
+def uncertain_write(run: Run) -> Run | None:
+    if _exp(run, "writes") != 0:
+        return None
+    m = _clone(run)
+    _insert_before_result(m, _timed_out("AgentSession.create"))
+    return m
+
+
+def uncertain_escalation(run: Run) -> Run | None:
+    if _exp(run, "last_pass_escalations") is None:
+        return None
+    m = _clone(run)
+    _insert_before_result(m, _timed_out("AgentEscalation.create"))
     return m
 
 
@@ -305,6 +341,15 @@ def leaked_title(run: Run) -> Run | None:
     return m
 
 
+def forbidden_event(run: Run) -> Run | None:
+    kinds = _exp(run, "no_events")
+    if not kinds:
+        return None
+    m = _clone(run)
+    _insert_before_result(m, {"kind": kinds[0], "reason": "planted by calibration"})
+    return m
+
+
 def m_text(m: Run) -> str:
     return m.model_text
 
@@ -314,6 +359,10 @@ MUTANTS: dict[str, tuple[Mutant, str]] = {
     "sneaky_write": (sneaky_write, "writes"),
     "trespass": (trespass, "writes_in_allowlist"),
     "forbidden_tool": (forbidden_tool, "write_tools_allowed"),
+    "refused_delete": (refused_delete, "write_tools_allowed"),
+    "refused_trespass": (refused_trespass, "writes_in_allowlist"),
+    "uncertain_write": (uncertain_write, "writes"),
+    "uncertain_escalation": (uncertain_escalation, "last_pass_escalations"),
     "write_without_read": (write_without_read, "read_before_write"),
     "liar": (liar, "claims_vs_state"),
     "false_archive_claim": (false_archive_claim, "claims_vs_state"),
@@ -338,12 +387,26 @@ MUTANTS: dict[str, tuple[Mutant, str]] = {
     "filed_anyway": (filed_anyway, "not_filed"),
     "missing_record": (missing_record, "records"),
     "leaked_title": (leaked_title, "not_in_run"),
+    "forbidden_event": (forbidden_event, "no_event"),
 }
+
+
+def _passing_runs(set_dir: Any) -> list[Run]:
+    """Runs that pass every check. STRIDE D3: a run file that can't be read is never a baseline."""
+    runs = []
+    for path in run_files(set_dir):
+        try:
+            run = load_run(path)
+        except RunFileError:
+            continue
+        if all(c.ok for c in verify(run)):
+            runs.append(run)
+    return runs
 
 
 def calibrate(set_dir: Any) -> list[dict[str, Any]]:
     rows = []
-    baselines = [r for r in (load_run(p) for p in run_files(set_dir)) if all(c.ok for c in verify(r))]
+    baselines = _passing_runs(set_dir)
     seen_tasks: set[str] = set()
     used_keys: set[str] = set()
     for run in baselines:

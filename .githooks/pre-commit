@@ -1,0 +1,4 @@
+#!/bin/sh
+# STRIDE I11: refuse a commit whose staged lines hold a possible secret (prints file and line only).
+# Turn it on once per clone: git config core.hooksPath .githooks
+exec python scripts/secret_scan.py --staged

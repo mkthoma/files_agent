@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from agent.redact import Secret
 from agent.trace import Trace
 
 
@@ -18,7 +19,7 @@ class Session:
             raise AuthError("No password configured: set AS_KEYSTONE_PASSWORD / AS_SURYODAYA_PASSWORD in .env")
         self.transport = transport
         self.email = email
-        self._password = password
+        self._password = Secret(password)  # STRIDE I4: masked in tracebacks, sent as is
         self.trace = trace
         self._token: str | None = None
         self._me: dict[str, Any] | None = None
@@ -28,7 +29,7 @@ class Session:
         if status != 200 or not isinstance(data, dict) or "token" not in data:
             self.trace.write("login", ok=False, status=status)
             raise AuthError(f"Login failed for {self.email} (HTTP {status}). Check the password in .env.")
-        self._token = data["token"]
+        self._token = Secret(data["token"])
         self.trace.redact.add(self._token)
         self.trace.write("login", ok=True, status=status)
 

@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import http.client
 import json
 import re
 import time
@@ -14,8 +15,12 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from agent.http import CHUNK_BYTES, NO_REDIRECT_OPENER, TransportError, read_capped
+from agent.redact import Secret
+
 API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2023-06-01"
+SOCKET_TIMEOUT = 120.0
 
 
 class ModelError(Exception):
@@ -25,33 +30,42 @@ class ModelError(Exception):
 class AnthropicModel:
     name = "anthropic"
 
-    def __init__(self, api_key: str, model: str, max_tokens: int = 2048, temperature: float | None = 0.0, retries: int = 3) -> None:
+    def __init__(self, api_key: str, model: str, max_tokens: int = 2048, temperature: float | None = 0.0, retries: int = 3,
+                 max_seconds: float = 300.0) -> None:
         if not api_key:
             raise ModelError("ANTHROPIC_API_KEY is not set in .env (use --model scripted to run offline)")
-        self.api_key, self.model, self.max_tokens, self.temperature, self.retries = api_key, model, max_tokens, temperature, retries
+        self.api_key, self.model, self.max_tokens, self.temperature, self.retries = Secret(api_key), model, max_tokens, temperature, retries
+        self.max_seconds = max_seconds  # wall-clock cap for one create(), retries and backoff included
 
     def create(self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> dict[str, Any]:
         body: dict[str, Any] = {"model": self.model, "max_tokens": self.max_tokens, "system": system, "messages": messages, "tools": tools}
         if self.temperature is not None:
             body["temperature"] = self.temperature
         headers = {"x-api-key": self.api_key, "anthropic-version": API_VERSION, "content-type": "application/json"}
+        deadline = time.monotonic() + self.max_seconds  # STRIDE D9: a slow or trickled reply can't hang the run
         for attempt in range(self.retries + 1):
             req = urllib.request.Request(API_URL, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
             try:
-                with urllib.request.urlopen(req, timeout=120) as resp:
-                    return json.loads(resp.read().decode("utf-8"))
+                timeout = max(0.1, min(SOCKET_TIMEOUT, deadline - time.monotonic()))
+                with NO_REDIRECT_OPENER.open(req, timeout=timeout) as resp:  # STRIDE S5: the key never follows a redirect
+                    return json.loads(read_capped(resp, deadline, "Messages API").decode("utf-8"))
             except urllib.error.HTTPError as err:
-                detail = err.read().decode("utf-8", "replace")[:300]
-                if err.code in (429, 500, 502, 503, 529) and attempt < self.retries:
+                detail = err.read(CHUNK_BYTES).decode("utf-8", "replace")[:300]
+                if err.code in (429, 500, 502, 503, 529) and self._may_retry(attempt, deadline):
                     time.sleep(2 ** (attempt + 1))
                     continue
                 raise ModelError(f"Messages API HTTP {err.code}: {detail}") from err
-            except urllib.error.URLError as err:
-                if attempt < self.retries:
+            except (OSError, http.client.HTTPException) as err:  # URLError, timeouts, a reply cut off mid-body
+                if self._may_retry(attempt, deadline):
                     time.sleep(2 ** (attempt + 1))
                     continue
-                raise ModelError(f"Messages API unreachable: {err}") from err
+                raise ModelError(f"Messages API unreachable: {err}") from None  # STRIDE I4: its frames hold the key
+            except TransportError as err:
+                raise ModelError(f"Messages API reply refused: {err}") from err
         raise ModelError("Messages API failed after retries")
+
+    def _may_retry(self, attempt: int, deadline: float) -> bool:
+        return attempt < self.retries and time.monotonic() + 2 ** (attempt + 1) < deadline
 
 
 PART = r"([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)"

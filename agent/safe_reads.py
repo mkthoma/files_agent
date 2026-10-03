@@ -9,9 +9,13 @@ Traps avoided (all verified 21-22 Sept 2026, bugs L2/L3/L5/F4/F5):
 """
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
+from agent.mcp_client import McpError
+
 PAGE = 500
+MAX_PAGES = 200  # 100,000 rows; every table today fits in one page
 SAFE_SERVER_FILTERS = {"id", "folder_id", "entity_id", "entity_type", "code", "file_id", "content_hash", "parent_id"}
 
 
@@ -20,15 +24,39 @@ def list_all(mcp: Any, tool: str, **filters: Any) -> list[dict[str, Any]]:
     server = {k: v for k, v in filters.items()
               if k in SAFE_SERVER_FILTERS and v is not None and "," not in str(v) and not str(v).startswith(("ne:", "gt:", "lt:"))}
     rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
     offset = 0
-    while True:
+    for _ in range(MAX_PAGES):  # STRIDE D8: a server that ignores offset can't keep us paging forever
         page = mcp.call(tool, {**server, "limit": PAGE, "offset": offset})
-        batch = (page or {}).get("data", [])
-        rows.extend(batch)
+        batch = _page_rows(tool, page)
+        if not batch:
+            return where(rows, **filters)
+        fresh = [r for r in batch if r.get("id") is None or str(r["id"]) not in seen]
+        if not fresh:  # STRIDE D8: the same rows again means offset is ignored; never keep duplicates
+            raise McpError(f"{tool} returned the same rows again at offset {offset}; stopped paging",
+                           data_code="no_progress", own=True)
+        seen.update(str(r["id"]) for r in fresh if r.get("id") is not None)
+        rows.extend(fresh)
         offset += len(batch)
-        if not batch or offset >= int((page or {}).get("total", 0)):
-            break
-    return where(rows, **filters)
+        total = _total(page)
+        if total is not None and offset >= total:
+            return where(rows, **filters)
+    raise McpError(f"{tool} still had rows after {MAX_PAGES} pages; stopped paging", data_code="too_many_pages",
+                   own=True)
+
+
+def _page_rows(tool: str, page: Any) -> list[dict[str, Any]]:
+    """The rows of one list page; a reply of any other shape is an error, never an empty table."""
+    data = page.get("data") if isinstance(page, dict) else None
+    if not isinstance(data, list) or not all(isinstance(r, dict) for r in data):
+        raise McpError(f"{tool} returned a page that is not a list of rows", data_code="bad_reply", own=True)  # STRIDE D8
+    return data
+
+
+def _total(page: dict[str, Any]) -> int | None:
+    """The server's row count, or None when it is missing or not a count (then page until an empty page)."""
+    total = page.get("total")
+    return total if isinstance(total, int) and not isinstance(total, bool) and total >= 0 else None
 
 
 def where(rows: list[dict[str, Any]], **equals: Any) -> list[dict[str, Any]]:
@@ -53,9 +81,23 @@ def folders_by_id(mcp: Any) -> dict[str, dict[str, Any]]:
     return {f["id"]: f for f in list_all(mcp, "DriveFolder.list")}
 
 
+def name_key(name: Any) -> str:
+    """How folder names are compared: trimmed and case-folded."""
+    return str(name or "").strip().casefold()
+
+
+def shared_names(folders: dict[str, dict[str, Any]]) -> set[str]:
+    """Folder names (as name_key) that more than one live folder carries."""
+    counts = Counter(name_key(f.get("name")) for f in folders.values() if not f.get("is_archived"))
+    return {key for key, n in counts.items() if n > 1}
+
+
 def folder_named(folders: dict[str, dict[str, Any]], name: str) -> dict[str, Any] | None:
-    wanted = name.strip().lower()
-    return next((f for f in folders.values() if f.get("name", "").strip().lower() == wanted), None)
+    """The one live folder with this name; None if there is none or several (a shared name is ambiguous)."""
+    wanted = name_key(name)
+    # STRIDE T4: a second folder with the same name (another team's 'HR') must never win silently
+    matches = [f for f in folders.values() if not f.get("is_archived") and name_key(f.get("name")) == wanted]
+    return matches[0] if len(matches) == 1 else None
 
 
 def find_files_by_name(files: list[dict[str, Any]], name: str) -> list[dict[str, Any]]:

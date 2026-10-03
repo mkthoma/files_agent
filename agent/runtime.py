@@ -65,15 +65,25 @@ def check_write_permission(target: str, mode: str, settings: Settings) -> None:
                                "(the .env file is ignored for it) as well as --live-apply.")
 
 
+def check_transport(target: str, transport: Any) -> None:
+    """STRIDE E1: the label must match the transport in use; any transport that is not a fake counts as live."""
+    if (target == "fake") != bool(getattr(transport, "is_fake", False)):
+        raise ValueError(f"target {target!r} does not match the transport {type(transport).__name__}")
+
+
 def build(business: str, target: str, mode: str, trace_path: Path | None, *, transport: Any = None,
           settings: Settings | None = None, trace: Trace | None = None, live_allowlist: bool = False) -> Runtime:
     """`live_allowlist` (offline only matters): cap the write allow-list exactly as the live target does."""
+    if target not in ("live", "fake"):  # STRIDE E1: no third label can slip past the checks keyed on these two
+        raise ValueError(f"target must be 'live' or 'fake', not {target!r}")
     settings = settings or get_settings(business)
     check_write_permission(target, mode, settings)
     trace = trace or Trace(trace_path, Redactor(settings.secrets()))
     transport = transport or make_transport(target, settings)
-    password = settings.password or ("fake-password" if target == "fake" else "")
-    session = Session(transport, settings.email, password, trace)
+    check_transport(target, transport)
+    # STRIDE I4: no plain `password` local, so a traceback printed with locals can't show it
+    session = Session(transport, settings.email,
+                      settings.password or ("fake-password" if target == "fake" else ""), trace)
     session.login()
     budget = Budget(settings.max_turns, settings.max_mcp_calls, settings.max_usd,
                     settings.price_in_per_mtok, settings.price_out_per_mtok)
@@ -82,25 +92,25 @@ def build(business: str, target: str, mode: str, trace_path: Path | None, *, tra
     catalog = Catalog.from_tools(admin.list_tools())
     trace.write("catalog", report=catalog.report(), hash=catalog.hash(), problems=catalog.check_required())
     admin.sanitise = lambda payload: sanitise_payload(payload, catalog.can_list)
-    allowlist = _allowlist(admin, target, settings, live_allowlist)
+    allowlist = _allowlist(admin, bool(getattr(transport, "is_fake", False)), settings, live_allowlist)
     mcp = McpClient(session, trace, budget)
     mcp._tools = admin.list_tools()
     mcp.sanitise = admin.sanitise
-    guard = WriteGuard(mcp, trace, mode, allowlist)
+    guard = WriteGuard(mcp, trace, mode, allowlist, live=not getattr(transport, "is_fake", False))
     ctx = SkillContext(mcp=mcp, session=session, guard=guard, trace=trace, catalog=catalog,
                        rules=load_rules(), settings=settings, allowlist=allowlist)
     ctx.escalator = Escalator(ctx)
     return Runtime(settings, target, trace, transport, session, mcp, admin, catalog, budget, guard, ctx)
 
 
-def _allowlist(mcp: McpClient, target: str, settings: Settings, live_cap: bool = False) -> frozenset[str]:
-    """Writable file ids = what is in Incoming right now; on the live platform (or with live_cap,
-    to rehearse it offline) also capped to the verified 9."""
+def _allowlist(mcp: McpClient, fake: bool, settings: Settings, live_cap: bool = False) -> frozenset[str]:
+    """Writable file ids = what is in Incoming right now; on any transport that is not the fake server (or with
+    live_cap, to rehearse it offline) also capped to the verified 9."""
     incoming = folder_named(folders_by_id(mcp), "Incoming")
     if not incoming:
         return frozenset()
     page = mcp.call("FileAttachment.list", {"folder_id": incoming["id"], "limit": 500})
     ids = frozenset(r["id"] for r in where((page or {}).get("data", []), folder_id=incoming["id"]))
-    if target == "live" or live_cap:
+    if not fake or live_cap:  # STRIDE E1: the transport decides, not the label
         return ids & KEYSTONE_INCOMING_ALLOWLIST if settings.business == WRITE_BUSINESS else frozenset()
     return ids
