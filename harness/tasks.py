@@ -1,19 +1,21 @@
 """Task files (T4.1). One TOML file per task in harness/tasks/. The expectations are TEAM-OWNED."""
 from __future__ import annotations
 
+import re
 import tomllib
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
 from agent.config import REPO_ROOT
 
 TASK_DIR = REPO_ROOT / "harness" / "tasks"
+TASK_ID_RE = re.compile(r"[A-Za-z0-9_-]+")
 KNOWN_EXPECT = {
     "writes", "final_folders", "archived", "unchanged", "escalations_new", "last_pass_escalations", "escalation_for",
     "answer_must_mention", "answer_must_not_mention", "answer_must_cite", "answer_must_not_cite",
     "cited_ids_must_resolve", "planned_folders", "planned_not_filed", "aborted",
-    "records_must_include", "run_must_not_contain",
+    "records_must_include", "run_must_not_contain", "no_events",
 }
 
 
@@ -40,8 +42,53 @@ class Task:
         return cls(**{**data, "faults": tuple(data.get("faults", ())), "extra_files": tuple(data.get("extra_files", ()))})
 
 
+TASK_FIELDS = {f.name for f in fields(Task)}
+
+
+def _read_toml(path: Path) -> dict[str, Any]:
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as err:  # STRIDE D4: say which file is broken
+        raise ValueError(f"{path.name}: not valid TOML: {err}") from err
+
+
+def _id_problem(path: Path, data: dict[str, Any]) -> str | None:
+    """STRIDE T14: the id names the run folder, so it must be the file's own name and path-safe."""
+    task_id = data.get("id")
+    if isinstance(task_id, str) and TASK_ID_RE.fullmatch(task_id) and task_id == path.stem:
+        return None
+    return f"id must equal the file name {path.stem!r} and use only letters, digits, '_' and '-'; found {task_id!r}"
+
+
+def _type_problems(data: dict[str, Any]) -> list[str]:
+    """STRIDE T14: a quoted bool is truthy and passes = 0 runs nothing, so wrong types are refused, not coerced."""
+    problems = [f"{k} must be a string" for k in ("question", "business", "notes", "mode") if k in data and not isinstance(data[k], str)]
+    if isinstance(data.get("question"), str) and not data["question"].strip():
+        problems.append("question must not be empty")
+    problems += [f"{k} must be true or false" for k in ("live_write", "live_allowlist") if k in data and type(data[k]) is not bool]
+    problems += [f"{k} must be a whole number of at least 1" for k in ("repeat", "passes")
+                 if k in data and (type(data[k]) is not int or data[k] < 1)]
+    faults, extra = data.get("faults", []), data.get("extra_files", [])
+    if not isinstance(faults, list) or not all(isinstance(f, str) for f in faults):
+        problems.append("faults must be a list of strings")
+    if not isinstance(extra, list) or not all(isinstance(f, dict) for f in extra):
+        problems.append("extra_files must be a list of tables")
+    if not isinstance(data.get("expect", {}), dict):
+        problems.append("expect must be a table")
+    return problems
+
+
 def load_task(path: Path) -> Task:
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    data = _read_toml(path)
+    unknown_keys = set(data) - TASK_FIELDS
+    if unknown_keys:  # STRIDE D4: a typo such as `repeats` names the file instead of crashing in Task()
+        raise ValueError(f"{path.name}: unknown key(s) {sorted(unknown_keys)}; allowed: {sorted(TASK_FIELDS)}")
+    missing = sorted({"id", "question"} - set(data))
+    if missing:
+        raise ValueError(f"{path.name}: missing {missing}")
+    problems = [p for p in [_id_problem(path, data), *_type_problems(data)] if p]
+    if problems:
+        raise ValueError(f"{path.name}: " + "; ".join(problems))
     unknown = set(data.get("expect", {})) - KNOWN_EXPECT
     if unknown:
         raise ValueError(f"{path.name}: unknown expectation(s) {sorted(unknown)}")
@@ -50,8 +97,20 @@ def load_task(path: Path) -> Task:
     return Task.from_dict(data)
 
 
+def _refuse_duplicates(paths: list[Path], tasks: list[Task]) -> None:
+    """STRIDE T14: a second file with the same id (ignoring case, as Windows folders do) must not replace a task."""
+    seen: dict[str, Path] = {}
+    for path, task in zip(paths, tasks):
+        key = task.id.casefold()
+        if key in seen:
+            raise ValueError(f"task id {task.id!r} in {path.name} is already used by {seen[key].name}")
+        seen[key] = path
+
+
 def load_all(folder: Path = TASK_DIR) -> dict[str, Task]:
-    tasks = [load_task(p) for p in sorted(folder.glob("*.toml")) if p.stem != "routes"]
+    paths = [p for p in sorted(folder.glob("*.toml")) if p.stem != "routes"]
+    tasks = [load_task(p) for p in paths]
+    _refuse_duplicates(paths, tasks)
     live = [t.id for t in tasks if t.live_write]
     if len(live) > 1:
         raise ValueError(f"only one task may set live_write = true (one live write run is planned), found {live}")

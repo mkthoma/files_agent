@@ -47,6 +47,8 @@ def _now() -> str:
 
 
 class FakeServer:
+    is_fake = True  # STRIDE E1: agent.runtime.build refuses a fake labelled "live", or anything else labelled "fake"
+
     def __init__(self, fixture: dict[str, Any], faults: tuple[str, ...] = (), extra_files: list[dict[str, Any]] | None = None) -> None:
         self.fixture = copy.deepcopy(fixture)
         self.me = self.fixture["me"]

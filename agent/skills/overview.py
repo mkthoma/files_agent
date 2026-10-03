@@ -14,7 +14,7 @@ from agent.skills.common import Skill, SkillContext, ev
 
 
 def run(ctx: SkillContext, args: dict[str, Any]) -> dict[str, Any]:
-    status, overview = ctx.session.request("GET", "/api/drive/records/overview")
+    status, overview = ctx.overview()
     ov_total = ((overview or {}).get("files") or {}).get("total") if status == 200 and isinstance(overview, dict) else None
     files = ctx.files()
     in_folders = [f for f in files if f.get("folder_id")]

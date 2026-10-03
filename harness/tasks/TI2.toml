@@ -39,6 +39,7 @@ unchanged = [
   "782cdca0-b02d-4735-936b-a75cfac15892",  # mill cert (copy, 880 bytes): same name as 680e8af6, also going to Quality -> possible copy, escalate
 ]
 escalations_new = 13   # every not-filed file above is escalated exactly once
+cited_ids_must_resolve = true  # STRIDE T5: every id in the answer exists on the platform
 escalation_for = [
   "9af1955d-753e-4c7a-b8f9-6e885ca3057e",
   "8018a70b-47d5-472b-88b6-b1ced1ced8b0",

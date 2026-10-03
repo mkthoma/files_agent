@@ -349,12 +349,8 @@
      "delete": false,
      "write": false
     },
-    "_redacted_fields": [
-     "share_token"
-    ],
     "action": "upload",
     "actor_email": "sheila.rourke@keystoneprecision.com",
-    "actor_ip": null,
     "actor_name": "Front Office Scanner",
     "company_id": "c1e47d8d-b849-4187-9a32-4103d3dece4a",
     "created_at": "2026-09-16T16:27:27.796301",
@@ -362,8 +358,7 @@
     "details": "Dropped by the multifunction scanner with its default filename.",
     "file_id": "b1d3894c-12e9-4ee1-b1da-82c7191ed4a0",
     "folder_id": null,
-    "id": "87cbb617-3e98-4dfc-bed3-9100ab860e87",
-    "share_token": null
+    "id": "87cbb617-3e98-4dfc-bed3-9100ab860e87"
    },
    {
     "_company_id_display": "Keystone Precision Works LLC",
@@ -373,12 +368,8 @@
      "delete": false,
      "write": false
     },
-    "_redacted_fields": [
-     "share_token"
-    ],
     "action": "saved_from_email",
     "actor_email": "sales@apexmetalssupply.com",
-    "actor_ip": null,
     "actor_name": "Apex Metals Supply LLC",
     "company_id": "c1e47d8d-b849-4187-9a32-4103d3dece4a",
     "created_at": "2026-09-16T16:27:27.794782",
@@ -386,8 +377,7 @@
     "details": "Second copy of the same attachment.",
     "file_id": "82f83d94-5a46-4df3-9ee1-61e8b3c79d6e",
     "folder_id": null,
-    "id": "140c88b7-bc0a-44b5-93b2-bc5d3846e2ae",
-    "share_token": null
+    "id": "140c88b7-bc0a-44b5-93b2-bc5d3846e2ae"
    },
    {
     "_company_id_display": "Keystone Precision Works LLC",
@@ -397,12 +387,8 @@
      "delete": false,
      "write": false
     },
-    "_redacted_fields": [
-     "share_token"
-    ],
     "action": "archive",
     "actor_email": "devon.ashby@keystoneprecision.com",
-    "actor_ip": null,
     "actor_name": "Devon Ashby",
     "company_id": "c1e47d8d-b849-4187-9a32-4103d3dece4a",
     "created_at": "2026-09-16T16:27:27.793509",
@@ -410,8 +396,7 @@
     "details": "Superseded by Rev C; moved out of Jig & Fixture Drawings.",
     "file_id": "91feaf59-c9b9-4e10-a603-ece98fa00e2b",
     "folder_id": null,
-    "id": "d2b16da4-076f-49cd-8206-66f1496995e2",
-    "share_token": null
+    "id": "d2b16da4-076f-49cd-8206-66f1496995e2"
    },
    {
     "_company_id_display": "Keystone Precision Works LLC",
@@ -421,12 +406,8 @@
      "delete": false,
      "write": false
     },
-    "_redacted_fields": [
-     "share_token"
-    ],
     "action": "share_created",
     "actor_email": "devon.ashby@keystoneprecision.com",
-    "actor_ip": null,
     "actor_name": "Devon Ashby",
     "company_id": "c1e47d8d-b849-4187-9a32-4103d3dece4a",
     "created_at": "2026-09-16T16:27:27.792073",
@@ -434,8 +415,7 @@
     "details": "Shared Rev C with Tuscarawas Machining Services LLC.",
     "file_id": "2683b2c8-f700-4870-981c-1fb9c8d53393",
     "folder_id": null,
-    "id": "38620330-5687-4369-bf5b-8dfb7f054741",
-    "share_token": null
+    "id": "38620330-5687-4369-bf5b-8dfb7f054741"
    },
    {
     "_company_id_display": "Keystone Precision Works LLC",
@@ -445,12 +425,8 @@
      "delete": false,
      "write": false
     },
-    "_redacted_fields": [
-     "share_token"
-    ],
     "action": "download",
     "actor_email": "devon.ashby@keystoneprecision.com",
-    "actor_ip": null,
     "actor_name": "Devon Ashby",
     "company_id": "c1e47d8d-b849-4187-9a32-4103d3dece4a",
     "created_at": "2026-09-16T16:27:27.790627",
@@ -458,8 +434,7 @@
     "details": "Downloaded to attach to PO-2026-00001 (J-BRKT-04 reorder).",
     "file_id": "2683b2c8-f700-4870-981c-1fb9c8d53393",
     "folder_id": null,
-    "id": "a5285730-b909-44be-baea-e3ae4a78bf99",
-    "share_token": null
+    "id": "a5285730-b909-44be-baea-e3ae4a78bf99"
    }
   ],
   "DriveFolder": [

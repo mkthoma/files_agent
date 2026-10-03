@@ -22,6 +22,7 @@ notes = "Idempotency. writes and last_pass_escalations apply to the LAST pass."
 writes = 0
 last_pass_escalations = 0
 escalations_new = 13   # all from pass 1; pass 2 adds none (de-duplicated by subject)
+cited_ids_must_resolve = true  # STRIDE T5: every id in the answer exists on the platform
 
 [expect.final_folders]
 "1ee27946-7064-42e1-afce-376068a545bf" = "13c03c65-ddae-4d61-9e2f-b9167168277f"  # timesheet (original) -> HR
