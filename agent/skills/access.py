@@ -14,7 +14,7 @@ from typing import Any
 from agent.answer import UUID_RE
 from agent.privacy import is_withheld
 from agent.safe_reads import find_files_by_name
-from agent.skills.common import Skill, SkillContext, ev, uploader_of
+from agent.skills.common import UNVERIFIED_UPLOADER, Skill, SkillContext, ev, upload_lead
 from agent.skills.duplicates import find_groups
 
 APP_KEYWORDS = {
@@ -40,7 +40,8 @@ def detect_app(text: str) -> str | None:
 def explain_access(ctx: SkillContext, args: dict[str, Any]) -> dict[str, Any]:
     request = str(args.get("request", ""))
     allowed = list(ctx.me().get("allowed_apps") or [])
-    app = str(args.get("app") or detect_app(request) or "")
+    # STRIDE T13: the app comes from the words only (the user's own question first), never from a caller's `app` key
+    app = detect_app(ctx.question or "") or detect_app(request) or ""
     if app and app not in allowed:
         ctx.record(skill="explain_access", action="refuse_out_of_seat", status="refused", target_label=app,
                    evidence=[ev("allowed_apps", ", ".join(allowed)), ev("requested_app", app)],
@@ -120,10 +121,11 @@ def file_contents(ctx: SkillContext, args: dict[str, Any]) -> dict[str, Any]:
     lines = [f"{header}; none can be read."] if len(rows) > 1 else []
     for row in rows:
         ctx.note_ids(row["id"])
-        uploader = uploader_of(ctx, row["id"])
+        uploader, source = upload_lead(ctx, row["id"])
+        # STRIDE T2: the access log is client-written; say it is only a lead (the name itself is already one plain line)
         facts = [f"description: {row.get('description')!r}" if row.get("description") else "no description",
                  f"tags: {row.get('tags')!r}" if row.get("tags") else "no tags",
-                 f"uploader per access log: {uploader}" if uploader else "no upload record"]
+                 f"uploader per access log: {uploader} ({UNVERIFIED_UPLOADER})" if uploader else source]
         ctx.record(skill="file_contents", action="refuse_read_contents", status="refused", target_id=row["id"], target_label=row.get("filename"),
                    evidence=[ev("storage", "no file revisions / bytes are stored for this row")], missing=["file contents"])
         lines.append(f"I can't read {row.get('filename')} ({row['id']}): the platform stores no file contents for it, "

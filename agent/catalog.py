@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from agent.config import REQUIRED_TOOLS
+from agent.config import EXPOSED_READ_TOOLS, REQUIRED_TOOLS, WRITE_TOOLS
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,14 @@ class Catalog:
     def hash(self) -> str:
         """Stable fingerprint of names + input schemas, used in run manifests and pre-flight."""
         canon = sorted((n, json.dumps(t.get("inputSchema") or {}, sort_keys=True)) for n, t in self.tools.items())
+        return hashlib.sha256(json.dumps(canon).encode("utf-8")).hexdigest()[:16]
+
+    def text_hash(self) -> str:
+        """STRIDE T10: fingerprint of the agent's own tools with their descriptions and annotations (hash() covers
+        names and input schemas only), so pre-flight also sees a text-only or read-only-mark change to them."""
+        names = sorted({*REQUIRED_TOOLS, *EXPOSED_READ_TOOLS, *WRITE_TOOLS})
+        canon = [(n, json.dumps({k: (self.tools.get(n) or {}).get(k) for k in ("description", "inputSchema", "annotations")},
+                                sort_keys=True)) for n in names]
         return hashlib.sha256(json.dumps(canon).encode("utf-8")).hexdigest()[:16]
 
     def check_required(self) -> list[str]:

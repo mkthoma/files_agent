@@ -23,3 +23,7 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local tool settings that can hold secrets (STRIDE I3): an AI assistant's saved allow rules, direnv
+.claude/settings.local.json
+.envrc

@@ -33,12 +33,22 @@ class Budget:
     def reserve(self, calls: int) -> None:
         """Refuse to START a multi-call sequence (e.g. read-write-confirm) that the cap would cut off halfway."""
         if self.calls + calls > self.max_calls:
-            raise BudgetExceeded(f"MCP call cap would be reached mid-write ({self.calls}+{calls} > {self.max_calls}); stopped before writing")
+            # STRIDE R6: earlier writes in the run may have landed, so never claim that nothing was written.
+            raise BudgetExceeded(f"MCP call cap would be reached mid-write ({self.calls}+{calls} > {self.max_calls}); "
+                                 "stopped before starting the next write")
 
     def add_call(self) -> None:
         self.calls += 1
         if self.calls > self.max_calls:
             raise BudgetExceeded(f"MCP call cap reached ({self.max_calls})")
+
+    def check_projected(self, input_tokens: int, output_tokens: int) -> None:
+        """STRIDE D2: refuse a model call whose worst-case cost would pass the spend cap, so the cap is never
+        crossed by a whole paid turn (and an over-long request is never sent)."""
+        next_call = input_tokens / 1e6 * self.price_in_per_mtok + output_tokens / 1e6 * self.price_out_per_mtok
+        if self.usd + next_call > self.max_usd:
+            raise BudgetExceeded(f"spend cap would be passed by the next model call (${self.usd:.2f} spent, "
+                                 f"up to ${next_call:.2f} more, cap ${self.max_usd:.2f})")
 
     def add_usage(self, input_tokens: int, output_tokens: int) -> None:
         self.input_tokens += int(input_tokens or 0)
