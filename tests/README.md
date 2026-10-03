@@ -14,12 +14,15 @@ python -m unittest discover -s tests -v
 ```
 
 The tests are offline: they use the fake server built from the captured fixture, or small stand-ins, and
-never call the live platform, the model or the network. On 3 Oct 2026: `Ran 78 tests … OK` under
-Python 3.14 and 3.11, both on PR #4 alone and on PR #4 merged with the STRIDE fixes.
+never call the live platform, the model or the network. On 3 Oct 2026: `Ran 157 tests … OK`, three runs
+in a row, under Python 3.14 (3.11 was not installed on the machine that ran them). The 78 tests of
+PR #4 were also run under 3.11, both on PR #4 alone and on PR #4 merged with the STRIDE fixes.
 
 Whether `pytest` is allowed is open (staff question Q3), so the tests use `unittest`.
 
-## What the tests cover today (PR #4, Tanmay, 2 Oct 2026)
+## What the tests cover today
+
+### Written in PR #4 (Tanmay, 2 Oct 2026)
 
 | Plan task | File | Tests | What they check |
 |---|---|---|---|
@@ -37,10 +40,35 @@ Whether `pytest` is allowed is open (staff question Q3), so the tests use `unitt
 | Task loader | `test_tasks_loader.py` | 5 | an unknown `[expect]` key, a bad mode, a second `live_write` task and a `live_write` task without `live_allowlist` are refused; a good file loads |
 | | **11 files** | **78** | |
 
-**The numbers come from the newest fixture.** The tests load the newest folder under
-`harness/fixtures/keystone/` and pin its numbers (5 moves, 13 escalations, 9 warnings, some ids). The
-live write run needs a fresh capture within 24 hours of it, and that capture becomes the newest fixture.
-Run the tests straight after it and update any changed numbers in the same commit.
+### Written in PR #5 (Mathew Kenny Thomas, 3 Oct 2026)
+
+These take the scenario ids from the lists below. Ids marked **(part)** are only partly covered: the
+residue stays in [Unit scenarios only partly covered](#unit-scenarios-only-partly-covered-37).
+
+| Scenario / plan task | File | Tests | What they check |
+|---|---|---|---|
+| FD-1 **(part)**, FD-2 – FD-11 find drawing (T2.3) | `test_find_drawing.py` | 14 | J-BRKT-04 resolves to RevC with RevB superseded, KJ-BRKT-04 listed as a look-alike and no writes; a lower-case code finds it too; an unknown code and two parts sharing a code are refused; four spellings of `Rev B`; a tag must match whole; a drawing in Superseded counts as superseded; two live revisions, swapped archive flags, mixed `Rev1`/`RevC` and a superseded newest each name no current drawing |
+| SCORE-1 – SCORE-3, SCORE-5 – SCORE-9, SCORE-4 **(part)** evidence scoring (T5.2) | `test_triage_scoring.py` | 18 | the pure `_score` (a description plus a sender clue scores 0; disagreeing filename and linked record are a conflict naming both folders; score 2 escalates and exactly 3 move); the agent's own filed files are not evidence, people's are; all 18 Incoming items (5 moves, 13 held back, no writes); the planted W-9 conflict stays and escalates; a filed file keeps its description with the note appended; an archived file is left alone |
+| SAME-1, SAME-2, SCOPE-1 – SCOPE-3, IDEM-1, FOLLOW-1 **(part)**, FOLLOW-2 **(part)** (T5.8, decisions A and B) | `test_escalate.py` | 13 | the same-name ranking and a tie; the 880-byte copies escalate with basis "same filename in the destination" and point at their originals; a trusted copy is archived by its filed original with a pointer; the live cap updates only the 5 originals, escalates 4 and records the 9 copies out of scope; plan mode creates nothing; a second tidy writes nothing and all 13 escalations are `already_escalated` with pass 1's ids |
+| HARNESS-1, HARNESS-3 – HARNESS-6, HARNESS-8, HARNESS-9 †, HARNESS-2 **(part)**, HARNESS-7 **(part)** (T4.1, T4.2, T4.6, T4.8, T4.9) | `test_runner.py` | 13 | two `live_write` tasks refused and only TI2L `live_write`; four live misuses of `planned_runs` refused, the last on the shell-only `AS_ALLOW_WRITES`; 5, 2 and 1 runs planned; pre-flight's 9 warnings, a same-name row and a copy that has left Incoming; a failed set-up, a crash, a missing and a half-written run file each count as one failed run, with `score`/`rescore` surviving; calibration catches 18 of 18 on a D1 run |
+| PRIV-1 – PRIV-3, PRIV-4 † **(part)** (T2.11) | `test_privacy.py` | 7 | an e-sign row becomes a placeholder keeping id, size and folder, and the row handed in is unchanged; open rows come back untouched; a planted canary reaches `ctx.files()` but `list_files` shows 30 and withholds 84; the model's own `FileAttachment.get`, `FileAttachment.list` and `DriveAccessLog.list` never show its title |
+| LOOP-2, ANSWER-1 †, LOOP-1 **(part)** (T3.0, T3.2) | `test_loop.py` | 7 | two `tool_use` blocks in one reply run both skills in one turn (RevC, 5 planned moves, nothing written in plan mode); exactly 8 skills and 8 read-only MCP tools are offered, no write tool, and a tool whose read-only hint is cleared is dropped; `compose` flags an unseen id in any letter case, counts the record trail and keeps look-alikes out of it |
+| CONFIG-1 **(part)**, CONFIG-2 **(part)** (T2.2) | `test_config.py` | 4 | `.env` parsing: 4 keys with single quotes stripped, a whole-line comment and a line with no `=` skipped, and the shell's `AS_MODEL` beating the file; a fake apply and a live plan are allowed; a live apply needs Keystone, apply mode and `AS_ALLOW_WRITES` from the shell, and the same value in `.env` is ignored |
+| FAKE-1 **(part)** (T4.5) | `test_fake_server.py` | 2 | one-shot faults fire once: `http401_once` answers only the first `/api/mcp` call and `error_in_200:Item.list` only the first `Item.list`, and the next call of each succeeds; a disarmed server does not fire the 401 |
+| OVERVIEW-1 (T2.11) | `test_overview.py` | 1 | the overview's 15 against 30 files in folders out of 113 rows is a contradiction, with the `entity_type 'Drive'` reason in the answer and one `info` record |
+| — | `helpers.py` | — | not a test file: the shared set-up (the pinned 26 Sept fixture, a fake server with planted rows and faults, a runtime built on it while disarmed, settings that ignore the shell and `.env`) |
+| | **9 files** | **79** | |
+
+**All 20 test files together: 157 tests.**
+
+**The numbers come from a captured fixture.** PR #4's files load the **newest** folder under
+`harness/fixtures/keystone/`. PR #5's files go through `tests/helpers.py`, which pins
+`harness/fixtures/keystone/2026-09-26` by hand; that is the newest capture today, so both agree. Between
+them they pin 5 moves, 13 escalations, 9 warnings, 212 tools, 113 rows, 30 files in folders, the Drive
+overview's 15 and some ids. The live write run needs a fresh capture within 24 hours of it, and that
+capture becomes the newest fixture. Run the tests straight after it, update any changed numbers **and
+move `helpers.py`'s pin** in the same commit — otherwise PR #5's tests quietly keep checking the 26 Sept
+data while PR #4's follow the new capture.
 
 ## Still to write by hand
 
@@ -49,86 +77,51 @@ Write each test yourselves, then break the code on purpose and check that it goe
 
 ### Gaps found in the review of PR #4
 
+**Both are still open after PR #5.** Each sabotage below was applied again on 3 Oct 2026, in a scratch
+copy of the merged tree, and all 157 tests stayed green — including the second row's two halves, which
+were tried separately.
+
 | Behaviour to test | Sabotage that should turn it red |
 |---|---|
 | Pre-flight: a fixture row related to one of the 9 (for example a mill cert outside Incoming) that is renamed to an unrelated name is still a problem | in `_outside_incoming` (`harness/preflight.py`), judge only the live row: drop `or (base is not None and related(base))` |
 | An allow-listed file that has left Incoming is neither writable nor accepted by pre-flight (`allow-listed file(s) missing from Incoming`) | in `_allowlist` (`agent/runtime.py`), return the 9 ids without `ids &`; or drop the `missing` check in `assess` (`harness/preflight.py`) |
 
-### Unit scenarios not covered yet (46)
+### Unit scenarios not covered yet (10)
 
 The ids are labels from the team's unit-test scenario list, kept with the project docs outside this repo.
 **†** marks behaviour that comes from the STRIDE fixes: a test of it fails on code without them.
 
 | Id | Behaviour to test |
 |---|---|
-| FD-1 | J-BRKT-04 resolves to RevC, with RevB superseded and KJ-BRKT-04 named as a different part; a lower-case part code finds the same drawing |
-| FD-2 | an unknown part code is refused, never guessed |
-| FD-3 | a revision question names RevB as superseded and RevC as current; `Rev B`, `rev-b`, `Rev. B` and `revision B` all mean B |
-| FD-4 | two drawings that both look current: no current drawing is named |
-| FD-5 | KJ-BRKT-04 resolves to its own RevA and names J-BRKT-04 as a look-alike |
-| FD-6 | swapped archive flags are reported as conflicts, and no current drawing is named |
-| FD-7 | two parts with the same exact code are refused as ambiguous |
-| FD-8 | a tag must match whole: `unreleased` is not `released` |
-| FD-9 | a drawing in the Superseded folder that is not archived still counts as superseded |
-| FD-11 | the newest revision is superseded while an older one looks current: no current drawing is named |
 | DUP-3 | on the 26 Sept data all 14 shared hashes are untrusted, so the PO pairs are only suspected duplicates |
-| SCORE-3 | the threshold is inclusive: score 2 escalates (`score 2 < threshold 3`), exactly 3 moves; a linked record pointing nowhere adds no points |
-| SCORE-4 † | files the agent filed itself are not evidence for the next tidy; files people filed are |
-| SCORE-7 | "File Untitled.pdf into the right folder" refuses both same-name files and moves nothing; the name matches ignoring case; an unknown name changes nothing |
-| SCORE-8 | a filed file keeps its description; the agent's note is appended |
-| SCORE-9 | an archived file in Incoming is left alone: not moved, not escalated |
-| FOLLOW-1 | a duplicate follows its original only when the original is filed in this run; otherwise it waits for a person |
-| FOLLOW-2 | a trusted duplicate is archived next to its filed original with a pointer, and a person is asked to delete it |
-| SCOPE-2 | the Escalator refuses a file outside the allow-list |
-| SCOPE-3 | in plan mode the Escalator records "planned" and never tries to create anything |
 | ACCESS-1 | a payroll request is refused, citing the seat's apps; a drive request is allowed; the word "design" alone is not the design-review app |
 | ACCESS-5 | "What does scan0042.pdf say?" refuses both same-name files and invents nothing; an unknown name is not guessed |
-| PRIV-1 | an e-sign row becomes a placeholder that keeps id, size and folder; open rows come back untouched |
-| PRIV-2 | a planted e-sign canary never reaches skill rows, and `list_files` counts it as withheld |
-| PRIV-3 | the model's own `FileAttachment.get` and `.list` show only the placeholder |
-| PRIV-4 † | the model's own `DriveAccessLog.list` and `tools.search` never show a planted e-sign title (STRIDE I5) |
-| OVERVIEW-1 | `drive_overview` reports the contradiction: 15 from the overview, 30 in folders, 113 rows |
 | MCP-4 | `check_required` reports a missing tool and a newly required argument, and the hash changes with a schema |
 | GUARD-7 † | an update call that errors is reported "uncertain", never "not sent", and the tidy carries on |
 | RESTORE-3 | tidy, then restore, on the fake server leaves no difference |
 | RESTORE-4 | restore carries on past one row that fails, and reports it |
-| CONFIG-1 | `.env` lines are parsed, and the shell's value wins |
-| CONFIG-2 | offline and plan-only are always allowed; a live write needs Keystone, apply mode and `AS_ALLOW_WRITES` from the shell (a value in `.env` is ignored) |
 | BUDGET-2 | an endless tool-calling model stops at the turn cap (`max_turns`); running out of MCP calls aborts (`budget`) |
-| LOOP-1 | the graded two-part request runs both skills in one turn and writes nothing in plan mode |
-| LOOP-2 | the model is offered exactly 8 skills and 8 read-only MCP tools, no write tool, and no tool the catalogue doesn't mark read-only |
-| ANSWER-1 † | `compose` flags ids no tool showed, case-insensitively; the record trail lists decisions but not look-alikes; one id in two cases is cited once |
 | REC-1 | `DecisionRecord` rejects an unknown status or confidence, and survives a round trip to a dict |
-| HARNESS-2 | `planned_runs` refuses every live misuse before anything happens, and otherwise says how many run files a run makes |
-| HARNESS-5 | a run whose set-up fails still leaves a run file with a failed result |
-| HARNESS-6 | a missing run file counts as a failure, and rescore notices |
-| HARNESS-7 † | calibration catches every planted mistake on a real D1 run, and exposes a blinded verifier |
-| HARNESS-8 | an agent crash mid-run still leaves a complete run file that scores as a failure |
-| HARNESS-9 † | a half-written run file counts as one failed run; `score` and `rescore` survive it (STRIDE D3) |
 | VERIFY-1 | the `writes` check fails when a read-only task made a write call |
-| FAKE-1 | one-shot faults fire once, and only while the server is armed |
 
-### Unit scenarios only partly covered (38)
+### Unit scenarios only partly covered (37)
 
-PR #4's tests cover part of each; the second column says what is still missing.
+PR #4's and PR #5's tests cover part of each; the second column says what is still missing. Where PR #5
+took an id on, the row says what is left of it.
 
 | Id | Still missing |
 |---|---|
 | REV-1 | a lower-case name (`j-brkt-04_revc_jigbracket.pdf`) still reads as C; the raw value; `KPL-PMP-BASE-Rev2.pdf` reads as `2`, ordinal 2 |
 | REV-2 | `newest([])` gives no newest and no problems |
-| FD-10 | through `find_drawing`: an extra `J-BRKT-04_Rev1` drawing gives no current drawing, one conflict and no `current_drawing` record |
+| FD-1 | the answer sentence that names KJ-BRKT-04 as a different part: only the `lookalikes` list and the `lookalike_part` record's target id are asserted, so deleting that sentence from `_summary` leaves every test green |
 | DUP-1 | separate cases for a name-only difference (same size) and a size-only difference (same name); a row with no hash; the exact set of untrusted hashes |
 | DUP-4 | exactly 2 "not byte-verified"; the "14 content hash value(s) are shared" line; an apply run writes nothing; the Quality folder has no duplicates |
-| SCORE-1 | the pure `_score` with a sender clue: score 0 and no folder |
-| SCORE-2 | a filename and a linked record that disagree are a conflict; `to_folder` is empty and the "agreeing evidence" text names both folders |
-| SCORE-5 | all 18 items: exactly 5 moves (with the scores of each), the full refuse and escalate id sets, no `duplicate` item, an empty write log |
-| SCORE-6 | the planted description on the W-9: a conflict, never moved in apply mode, escalated, while the other four moves still happen |
-| SAME-1 | the ranking itself: the higher scorer stays a move and the lower one escalates as a possible copy; a tie (in any letter case) holds back both |
-| SAME-2 | the 880-byte copies `9b27de51` and `782cdca0` escalate with basis "same filename in the destination", pointing at `b45cecdd` and `680e8af6` |
-| SCOPE-1 | the allow-list is exactly the verified 9; the exact 9 copy ids and 5 updated ids; 1 session; escalation subjects name the 4 originals; no `write_blocked` |
-| IDEM-1 | exactly 13 `already_escalated` records, with the same ids as pass 1, read from the fake server's write log |
+| SCORE-4 † | that a `[Files Agent` note on a row **another** seat updated still counts as evidence: the test plants the note and `updated_by` together, so code reading the note alone still passes. Also the `own_ids` (this-run journal) branch of `agent_filed`, `MIN_AGREEING_ROWS` (both tests use 2 agreeing rows), and a real second tidy pass — the two tests call `similar_file_folder` directly with hand-made rows |
+| FOLLOW-1 | an original planned as a move but outside the write allow-list (so not filed in this run) still leaves the duplicate waiting; an original that is not in this plan at all (`twin is None`); and a filed original whose destination is the folder being tidied |
+| FOLLOW-2 | that the ask is about **deletion**: only the escalation's subject line is asserted, never the reason text ("needs someone with delete rights to remove it") or its reason code |
 | ACCESS-2 | "Delete <id>." in apply mode: nothing written, "can't delete" and `_permissions.delete = False` in the answer; an upper-case id finds the same file |
 | ACCESS-3 | the "duplicate of <id>" wording resolves to nothing too |
+| PRIV-4 † | a `tools.search` query that actually matches a tool, so the name-only projection is exercised ("offer letter" and "Canary" match no tool on the fixture, so nothing is stripped); and an access-log row whose own free text carries the title, or a row with `file_id` null, so I5's dropping of `details` is asserted |
 | READS-1 | `gt:` and `lt:` prefixes and an unlisted filter never reach the server; exactly one call with `limit` 500 and `offset` 0 |
 | READS-2 | a positive filtered result (rows in one folder kept after re-filtering); paging stops at an empty page even when `total` says more |
 | READS-3 | a row where the key is missing; on the fixture, 107 of 113 rows are not linked to an Item |
@@ -142,22 +135,32 @@ PR #4's tests cover part of each; the second column says what is still missing.
 | GUARD-5 | at triage level, with the `moved_row` fault: a `skip_changed` record, "SKIPPED W9…" in the answer, the W-9 left in HR, exactly 4 updates |
 | GUARD-6 | at triage level, with `clobber_after_write`: a failed move with `write_sent` true, "FAILED W9…" in the answer, the timesheet still moved |
 | RESTORE-1 | another team's change to a field we never wrote (tags) is a conflict; a mixed row (description put back, folder in conflict); `is_archived` 0 and False are the same |
+| CONFIG-1 | the other line forms `load_env` handles: an `export KEY=VALUE` prefix, a UTF-8 BOM on the first key, a double-quoted value and a trailing ` # comment`; a missing `.env`, where only the shell's `AS_*`/`ANTHROPIC_*` keys come back; and the `Secret` wrapping of a sensitive key |
+| CONFIG-2 | the real shell branch in the **allowed** direction: no test puts `AS_ALLOW_WRITES=1` into a patched `os.environ` and calls `get_settings()` with `env=None`. The allowed live apply goes through the injected-env seam, so only the refusal exercises `os.environ` |
 | BUDGET-1 † | the exact messages; the dollar amount of a known usage; `reserve` leaves the call count unchanged |
+| LOOP-1 | a two-part request that is really **routed** to both skills: the stand-in model hands back two `tool_use` blocks of its own, and the shipped `ScriptedModel` emits one, so no test shows the router splitting a request |
 | REDACT-1 | a secret inside free text becomes `[REDACTED]`; a token nested in a list of dicts is masked |
 | REDACT-2 | a real fake-server login plus an `McpClient` call; the bare token in a debug line is masked; login is `ok` |
-| HARNESS-1 | the error names both `live_write` tasks; in the real task folder only TI2L is `live_write`, and it sets `live_allowlist` |
-| HARNESS-3 | each of the 9 warnings names one copy id and says it will not be written or escalated |
-| HARNESS-4 | a new row outside Incoming that shares a name (`timesheet_week33 (1).xlsx`); a fixture copy that has left Incoming |
+| HARNESS-2 | the two `set_dir`-gated branches of `planned_runs`: `refuse_live_rerun` (a live write refused after an earlier attempt that may have written) and `set_aside_attempts` (an attempt that provably sent nothing moved to `attempt-<time>/`). Only the exception classes are asserted, never the refusal wording |
+| HARNESS-7 † | the blinded-verifier half: calibration is never made to report a MISSED row (an expectation key with no mutant, or a verifier that always returns ok), and only one baseline D1 run is calibrated, not several tasks |
 | VERIFY-2 | a get from an earlier pass does not count for an update in the next pass (`pass_start` resets it) |
 | VERIFY-3 | another team's change is ignored, with "foreign changes ignored" in the detail |
 | VERIFY-4 | the record trail the code appends does not count as the model's answer; an upper-case citation still counts |
 | VERIFY-5 † | a refused delete attempt (`ok` false) still fails `write_tools_allowed`; a failed update of an allowed tool is not a rule break (STRIDE R4) |
+| FAKE-1 | the other three one-shot faults (`moved_row`, `foreign_change`, `clobber_after_write`); and that a fault skipped while the server is disarmed is **not** consumed and still fires once `armed` goes back to True — the behaviour `helpers.build_runtime` and the runner rely on |
 
 ### STRIDE fixes with no test yet
 
 Each fix carries a `# STRIDE <id>` comment in the code; the report is
 [`docs/security/stride-review.md`](../docs/security/stride-review.md). Some fixes are already in the
 scenario lists above: I5 (PRIV-4), D3 (HARNESS-9), R4 (VERIFY-5) and part of I12 (GUARD-7).
+
+**PR #5 closed one of them: D3.** `test_runner.py` asserts that a half-written run file counts as one
+failed run and that `score` and `rescore` survive it — scoring such a file as a pass instead turns two of
+its tests red (checked on 3 Oct 2026). I5 is covered in part by `test_privacy.py` (see PRIV-4 above), and
+S4's gap in the table below is now narrower: `test_loop.py` pins the counted "Record trail" header and
+its last position, but not a model text that fakes a trail header of its own, nor the empty-records
+` none` form. R4 and I12 are untouched.
 
 | Threat | What to check | Sabotage that should turn it red |
 |---|---|---|
@@ -212,6 +215,13 @@ scenario lists above: I5 (PRIV-4), D3 (HARNESS-9), R4 (VERIFY-5) and part of I12
 For each test, **break the code on purpose and check the test goes red**, then undo the change. The
 review of PR #4 did this for every row below, on PR #4's own code: each break turned at least one of
 today's tests red.
+
+👤 **PR #5's 79 tests still need that pass**, apart from three spot checks done on 3 Oct 2026 in a
+scratch copy, each of which turned a PR #5 test red: scoring a half-written run file as a pass
+(`test_runner.py`, two tests), handing the model the raw row instead of the leak-guarded placeholder
+(`test_privacy.py`), and letting two parts that share an exact code pick the first match instead of
+refusing (`test_find_drawing.py`). Do the rest the same way, one sabotage at a time, and never in the
+working tree you commit from.
 
 | Test | Sabotage |
 |---|---|
