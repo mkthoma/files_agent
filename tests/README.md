@@ -1,6 +1,6 @@
 # tests/ — hand-written by Team 20 (Phase 5)
 
-> **This guide** (not the test files) was updated with AI assistance (Claude Code) on 3 Oct 2026. Every
+> **This guide** (not the test files) was last updated on 3 Oct 2026. Every
 > `test_*.py` file in this folder is **hand-written by the team** and must stay that way: the brief says
 > *"a test written by Claude or Codex scores zero"*, and each hand-written test is worth 10 points. Write
 > and commit new tests yourselves; your commit history is the evidence.

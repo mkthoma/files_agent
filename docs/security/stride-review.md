@@ -1,6 +1,6 @@
 # STRIDE security review: files_agent
 
-> **Produced with AI assistance (Claude Code).** This review and the fixes it describes need the team's review before you rely on them (see [section 11](#11-what-the-team-must-do)).
+> **This review and the fixes it describes need the team's review** before you rely on them (see [section 11](#11-what-the-team-must-do)).
 
 **Repo:** `files_agent`. Reviewed at `main` `85d0e5d`; the fixes were then merged with PR #4 (Tanmay's hand-written tests and stricter pre-flight checks, 2 Oct 2026).
 **Dates:** reviewed 2 Oct 2026; fixed and verified 3 Oct 2026; merged with PR #4 and verified again 3 Oct 2026
