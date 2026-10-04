@@ -111,7 +111,7 @@ def assess(rt: Any, fixture: dict[str, Any]) -> tuple[list[str], list[str]]:
 
 
 def _fixture_problems(rt: Any, fixture: dict[str, Any]) -> list[str]:
-    """STRIDE T8: on the live platform the baseline must be a fresh capture, as README section 11 requires."""
+    """STRIDE T8: on the live platform the baseline must be a fresh capture, as docs/live-run.md (section 11) requires."""
     if rt.target != "live":
         return []
     captured = (fixture.get("_manifest") or {}).get("captured_at")

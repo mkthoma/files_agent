@@ -3,7 +3,7 @@
   python scripts/secret_scan.py                  # tracked files, runs/ and harness/fixtures
   python scripts/secret_scan.py --staged         # the lines a commit would add (.githooks/pre-commit runs this)
   python scripts/secret_scan.py --history        # every line ever added, in every commit of every branch
-  python scripts/secret_scan.py --also CANARY    # also look for a dummy test string (README T0.2)
+  python scripts/secret_scan.py --also CANARY    # also look for a dummy test string (docs/checking.md, T0.2)
 
 What it looks for: the exact values of the passwords and the model key in .env (6+ characters, as agent/redact.py
 masks them), plus the shapes of a model key, a JWT, a long bearer token, and a password or key written out in
@@ -30,8 +30,9 @@ SHAPES = {
     "password or key assignment": re.compile(r"\b(?:AS_[A-Z]+_PASSWORD|ANTHROPIC_API_KEY)\s*=\s*['\"]?[^\s'\"$<(]{6,}"),
     "password in JSON": re.compile(r"(?i)\"password\"\s*:\s*\"[^\"$<]{6,}\""),
 }
-# Known non-secrets: the README's redaction example, placeholders and the fake server's own values, and the dummy
-# password of the hand-written tests/test_redact.py (PR #4), quoted so that only that exact value is allowed.
+# Known non-secrets: the redaction example (S5 in docs/checking.md), placeholders and the fake server's own
+# values, and the dummy password of the hand-written tests/test_redact.py (PR #4), quoted so that only that exact
+# value is allowed.
 ALLOWED = ("My-Secret-Pass-1", "abc.def.ghi", "YOUR_KEYSTONE_PASSWORD", "fake-token-", "fake-password", "[REDACTED]",
            '"s3cret-pass"')
 SCAN_DIRS = ("runs", "harness/fixtures")

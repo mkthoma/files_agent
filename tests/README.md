@@ -95,7 +95,7 @@ were tried separately.
 Decision C (4 Oct 2026) replaced the old duplicate rule: the agent never writes to a file because it
 looks like a copy of another. A possible copy (same recorded hash + size + name, or name + size) stays
 where it is, not archived, with one escalation naming the other file's id, folder and in-run destination.
-The rule is stated in the main README ([triage step 3](../README.md#triage_folder-evidence-scored-filing)).
+The rule is stated in the architecture guide ([triage step 3](../docs/architecture.md#triage_folder-evidence-scored-filing)).
 These scenarios replace FOLLOW-1 and FOLLOW-2 in the team's scenario list.
 
 **First, the 4 `FollowOriginalTests` in `test_escalate.py` (PR #5) assert the old rule, so they fail.**
