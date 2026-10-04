@@ -156,7 +156,10 @@ def _state_checks(run: Run, exp: dict[str, Any]) -> list[Check]:
     for fid in exp.get("archived", []):
         out.append(Check(f"archived:{fid[:8]}", bool((after.get(fid) or {}).get("is_archived")), "should be archived"))
     for fid in exp.get("unchanged", []):
-        changed = snapshot.diff({fid: before.get(fid) or {}}, {fid: after.get(fid) or {}})
+        if not before.get(fid):  # an id that never existed is not "unchanged": e.g. a stale id after a re-capture
+            out.append(Check(f"unchanged:{fid[:8]}", False, "not in the before-state: no such file when the run began"))
+            continue
+        changed = snapshot.diff({fid: before[fid]}, {fid: after.get(fid) or {}})
         out.append(Check(f"unchanged:{fid[:8]}", not changed, f"changed: {changed.get(fid)}" if changed else ""))
     new_esc = len(_escalations(run, "state_after")) - len(_escalations(run, "state_before"))
     if "escalations_new" in exp:
@@ -193,6 +196,7 @@ def _record_checks(run: Run, exp: dict[str, Any]) -> list[Check]:
     out: list[Check] = []
     records = run.last.get("records") or []
     for fid, folder in (exp.get("planned_folders") or {}).items():
+        # plan_duplicate: triage wrote it before decision C; kept so older run files (pre-23 Sept TI1) rescore the same
         hit = any(r["target_id"] == fid and (r.get("details") or {}).get("to_folder_id") == folder
                   and r["action"] in ("plan_move", "plan_duplicate") for r in records)
         out.append(Check(f"planned:{fid[:8]}", hit, f"no plan to move it to {folder}"))

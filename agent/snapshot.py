@@ -11,6 +11,8 @@
   the agent must never become the thing that overwrites other people's work.
 - Restore refuses a malformed snapshot or journal, or one that holds ids outside the allow-list,
   and keeps going when one row fails for any reason, so one bad row can't leave the others un-restored.
+  A journal that holds is_archived was written before decision C (the agent no longer archives): it is
+  refused too, with a message naming the commit to restore it with.
 
 Also usable on its own:
   AS_ALLOW_WRITES=1 python -m harness restore runs/<set>/<task>/snapshot-1.json --target live --live-apply
@@ -32,6 +34,10 @@ from agent.trace import private_open
 SNAPSHOT_FIELDS = (*WRITABLE_FIELDS, "updated_at", "updated_by")
 # STRIDE T6: restore only ever puts back the fields the write guard lets the agent change.
 RESTORE_FIELDS = UPDATE_FIELDS
+# Decision C: is_archived left UPDATE_FIELDS (and so RESTORE_FIELDS). A journal holding it was written by older
+# code; it is still refused (fail closed), but the message says which commit can restore it.
+PRE_DECISION_C = ("holds is_archived: it was written before decision C (the agent no longer archives). Restore it "
+                  "with the commit that made the run (see the run manifest's git commit, 8202cf8 or earlier)")
 
 
 class RestoreRefused(Exception):
@@ -116,6 +122,8 @@ def _journal_problem(entry: dict[str, Any]) -> str | None:
         return "has no file id"
     for key in ("changes", "before"):
         part = entry.get(key, {})
+        if isinstance(part, dict) and set(part) - RESTORE_FIELDS == {"is_archived"}:  # Decision C: an older journal
+            return PRE_DECISION_C
         problem = _field_problem(part, RESTORE_FIELDS) if isinstance(part, dict) else "is not an object"
         if problem:
             return f"{key} {problem}"
