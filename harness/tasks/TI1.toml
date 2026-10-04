@@ -11,6 +11,13 @@
 # escalated as possible copies naming the other ids and sizes. So the two 880-byte 23 Sept copies that score 3 (J-KNOB-09, mill
 # cert) are escalated, not filed next to their originals.
 
+# Duplicate rule (decision C): the agent never writes to a file because it looks like a copy of another.
+# A file matching another on the recorded hash + size + name, or only on name + size, is a possible copy:
+# it is not moved, archived, annotated or filed, and (if allow-listed) it is escalated once, naming the
+# other file's id, folder and in-run destination and asking a person to compare and decide. The guard
+# allows only folder_id and description, so nothing is ever archived (TI7 covers trusted pairs).
+# Here both PO "(1)" files (name + size; the PO hash is untrusted since 23 Sept) are planned as escalations.
+
 id = "TI1"
 question = "Tidy the incoming folder."
 mode = "read"          # plan only: nothing may be written
