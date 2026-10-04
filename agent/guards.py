@@ -25,8 +25,9 @@ from agent.mcp_client import McpError, safe_error_text
 from agent.textsafe import one_line
 from agent.trace import Trace
 
-# The only fields the agent ever changes on a file (triage: move, note, archive).
-UPDATE_FIELDS = frozenset({"folder_id", "description", "is_archived"})
+# The only fields the agent ever changes on a file (triage: move, and a note appended to the description).
+# Decision C: it never archives; a possible copy is escalated, not archived. Restore follows (RESTORE_FIELDS).
+UPDATE_FIELDS = frozenset({"folder_id", "description"})
 # Every file field a seat can write (snapshot and restore use the same set).
 WRITABLE_FIELDS = ("folder_id", "filename", "tags", "description", "is_archived", "party_id", "entity_type", "entity_id")
 ESCALATION_SUBJECT = re.compile(r"\[files-agent\] (\S+)")

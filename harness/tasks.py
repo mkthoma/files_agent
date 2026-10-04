@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.config import REPO_ROOT
+from harness.fake_server import extra_file_id
 
 TASK_DIR = REPO_ROOT / "harness" / "tasks"
 TASK_ID_RE = re.compile(r"[A-Za-z0-9_-]+")
@@ -78,6 +79,28 @@ def _type_problems(data: dict[str, Any]) -> list[str]:
     return problems
 
 
+def _extra_file_problems(extra: Any) -> list[str]:
+    """Each planted file needs a filename and its own id: two with one id would make one row (fake_server refuses)."""
+    if not isinstance(extra, list) or not all(isinstance(f, dict) for f in extra):
+        return []  # _type_problems reports it
+    problems: list[str] = []
+    seen: dict[str, str] = {}
+    for n, spec in enumerate(extra, 1):
+        name = spec.get("filename")
+        if not isinstance(name, str) or not name.strip():
+            problems.append(f"extra_files #{n} needs a filename")
+            continue
+        if "id" in spec and (not isinstance(spec["id"], str) or not spec["id"].strip()):
+            problems.append(f"extra_files {name!r}: id must be a non-empty string")
+            continue
+        file_id = extra_file_id(spec)
+        if file_id in seen:
+            problems.append(f"extra_files {name!r} has the same id {file_id} as {seen[file_id]!r}; "
+                            "give one of them its own `id`")
+        seen.setdefault(file_id, name)
+    return problems
+
+
 def load_task(path: Path) -> Task:
     data = _read_toml(path)
     unknown_keys = set(data) - TASK_FIELDS
@@ -86,7 +109,8 @@ def load_task(path: Path) -> Task:
     missing = sorted({"id", "question"} - set(data))
     if missing:
         raise ValueError(f"{path.name}: missing {missing}")
-    problems = [p for p in [_id_problem(path, data), *_type_problems(data)] if p]
+    problems = [p for p in [_id_problem(path, data), *_type_problems(data),
+                            *_extra_file_problems(data.get("extra_files", []))] if p]
     if problems:
         raise ValueError(f"{path.name}: " + "; ".join(problems))
     unknown = set(data.get("expect", {})) - KNOWN_EXPECT

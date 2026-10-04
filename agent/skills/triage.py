@@ -3,6 +3,18 @@
 Scoring rules live in agent/filing_rules.toml (TEAM-OWNED). A description such as
 "Belongs in HR" counts only when another, independent signal points to the same
 folder; if it points somewhere else the file is flagged as a conflict, never moved.
+
+Duplicate rule (decision C): the agent never writes to a file because it looks like a copy of
+another. A file matching another on the recorded hash + size + name, or only on name + size, is a
+possible copy: it is not filed, moved, archived or annotated, even if its own evidence would file
+it, and (if allow-listed) it is escalated once, naming the other file's id, folder and in-run
+destination. Hash, size and name are recorded metadata any seat can edit (bug B4), not the bytes.
+The original (a plain name first, then the oldest) is scored and filed like any other file.
+A later tidy does not escalate the same file again unless it was renamed (the subject is id + name).
+Known limits: a copy with a different name stem or size is not detected; a copy whose recorded hash
+is blank or differs from its original's is not detected (find_groups pairs on name + size only when
+neither file has a trusted hash); an original can be filed into a folder that holds its copy under a
+different name.
 """
 from __future__ import annotations
 
@@ -25,7 +37,7 @@ from agent.textsafe import one_line
 @dataclass
 class PlanItem:
     row: dict[str, Any]
-    action: str  # move | duplicate | conflict | escalate | refuse | leave
+    action: str  # move | conflict | escalate | refuse | leave
     to_folder: str | None = None
     score: int = 0
     evidence: list[Evidence] = field(default_factory=list)
@@ -123,9 +135,9 @@ def build_plan(ctx: SkillContext, folder: dict[str, Any], only_file: str | None)
     plan = [_plan_item(ctx, row, files, voters, groups.get(row["id"]))
             for row in sorted(in_folder, key=lambda r: r.get("filename", ""))]
     _hold_name_collisions(ctx, plan, files)
-    for item in plan:  # after the same-name rule, so a duplicate never follows an original that is held back
-        if item.action == "duplicate":
-            _follow_original(ctx, item, plan, folder)
+    for item in plan:  # after the same-name rule, so the request says where the other file really goes in this run
+        if _is_possible_copy(item):
+            item.missing = [_ask_to_compare(ctx, item, plan, files)]
     for item in plan:
         if item.action in ("escalate", "refuse", "conflict"):
             item.person, item.person_source = _person(ctx, item.row)
@@ -139,26 +151,39 @@ def _plan_item(ctx: SkillContext, row: dict[str, Any], files: list[dict[str, Any
     item = _score(ctx, PlanItem(row, "refuse", evidence=_signals(ctx, row, files, voters)))
     if group is None:
         return item
+    return _hold_as_copy_match(ctx, item, group)
+
+
+def _hold_as_copy_match(ctx: SkillContext, item: PlanItem, group: Any) -> PlanItem:
+    """Decision C: a possible copy is never filed, moved, archived or annotated; a person is asked instead.
+
+    The match (hash + size + name, or name + size) is recorded metadata any seat can edit, and no bytes
+    are stored (bug B4). Acting on it would let a row planted anywhere in the tenant steer or hide this
+    file, and would bypass the evidence score and the same-name rule (decision B). Both bases follow
+    the same rule; the request text is filled in by _ask_to_compare once the whole plan is known.
+    """
     original = group.original
-    if group.basis.startswith(TRUSTED_DUPLICATE_BASIS):
-        return PlanItem(row, "duplicate", original_id=original["id"], evidence=item.evidence,
-                        to_folder=original.get("folder_id"), basis=group.basis)
-    # Name + size alone is a suspicion, not proof: never archive on it, ask a person instead.
-    hint = ev("suspected_duplicate", f"same name and size as {original.get('filename')}; no trusted hash", None, original["id"])
-    return PlanItem(row, "escalate", evidence=[*item.evidence, hint], original_id=original["id"], basis=group.basis,
-                    missing=[f"confirmation that it duplicates {original.get('filename')} ({original['id']}); "
-                             f"only {group.basis} match"])
+    signal = "recorded_duplicate" if group.basis.startswith(TRUSTED_DUPLICATE_BASIS) else "suspected_duplicate"
+    hint = ev(signal, f"matches {one_line(original.get('filename'), NAME_LIMIT)} in {ctx.folder_name(original.get('folder_id'))} "
+              f"on {group.basis}: recorded metadata, not byte-verified", None, original["id"])
+    return PlanItem(item.row, "escalate", evidence=[*item.evidence, hint], original_id=original["id"], basis=group.basis)
 
 
-def _follow_original(ctx: SkillContext, item: PlanItem, plan: list[PlanItem], folder: dict[str, Any]) -> None:
-    """A duplicate goes where its original goes; if the original isn't filed in this run, the duplicate waits for a person."""
+def _is_possible_copy(item: PlanItem) -> bool:
+    """Held by decision C (a duplicate group match), as opposed to the same-name rule (decision B)."""
+    return bool(item.original_id) and item.basis not in (None, SAME_NAME_BASIS)
+
+
+def _ask_to_compare(ctx: SkillContext, item: PlanItem, plan: list[PlanItem], files: list[dict[str, Any]]) -> str:
+    """Name the other file by id and folder, and where this run is filing it, and ask a person to decide."""
+    other = next((f for f in files if f.get("id") == item.original_id), {"id": item.original_id})
     twin = next((p for p in plan if p.row["id"] == item.original_id), None)
-    if twin is not None:
-        filed = twin.action == "move" and twin.row["id"] in ctx.allowlist
-        item.to_folder = twin.to_folder if filed else None
-    if item.to_folder in (None, folder["id"]):
-        item.action, item.to_folder = "escalate", None
-        item.missing = [f"a filed original: {item.original_id} is not filed yet, so the duplicate was not archived"]
+    filed = bool(twin and twin.action == "move" and twin.to_folder and twin.row["id"] in ctx.allowlist)
+    going = f", which this run plans to file in {ctx.folder_name(twin.to_folder)}" if filed else ""
+    return (f"a person to compare it with its possible duplicate {one_line(other.get('filename'), NAME_LIMIT)} "
+            f"({other['id']}, in {ctx.folder_name(other.get('folder_id'))}{going}) and decide whether to file it, "
+            f"keep both, or have one removed; matched only on {item.basis}, recorded metadata any seat can edit, "
+            "not the file bytes")
 
 
 def _name_key(row: dict[str, Any]) -> str:
@@ -210,9 +235,6 @@ def _note(ctx: SkillContext, item: PlanItem, from_name: str) -> str:
     """The provenance note appended to the file's description (never replacing it)."""
     stamp, dest = f"{PROVENANCE_MARKER} {ctx.today()}]", ctx.folder_name(item.to_folder)
     source = one_line(from_name, NAME_LIMIT)  # STRIDE T2: folder names are platform text written into the row
-    if item.action == "duplicate":
-        return (f"{stamp} Archived as a duplicate of {item.original_id} (matched on {item.basis}; not byte-verified) "
-                f"and moved {source} -> {dest}, next to the original.")
     signals = ", ".join(sorted({e.signal for e in item.evidence}))
     return f"{stamp} Moved {source} -> {dest}. Evidence: {signals}. Score: {item.score} (threshold {ctx.rules.threshold})."
 
@@ -221,8 +243,6 @@ def _apply_move(ctx: SkillContext, item: PlanItem, folder: dict[str, Any]) -> No
     row, label = item.row, item.row.get("filename")
     desc = row.get("description") or ""
     changes: dict[str, Any] = {"folder_id": item.to_folder, "description": (desc + "\n" if desc else "") + _note(ctx, item, folder["name"])}
-    if item.action == "duplicate":
-        changes["is_archived"] = True
     # The row must be exactly as planned: same folder, same description (we append to it), same updated_at.
     expect = {"folder_id": folder["id"], "description": row.get("description"), "updated_at": row.get("updated_at")}
     try:
@@ -239,12 +259,9 @@ def _apply_move(ctx: SkillContext, item: PlanItem, folder: dict[str, Any]) -> No
     details = {"from_folder_id": folder["id"], "to_folder_id": item.to_folder, "changes": {k: v for k, v in changes.items() if k != "description"}}
     if written.get("concurrent_change"):  # STRIDE T11: noted on the applied record; the move itself did land
         details["concurrent_change"] = sorted(written["concurrent_change"])
-    ctx.record(skill="triage_folder", action="archive_duplicate" if item.action == "duplicate" else "move", status="applied",
+    ctx.record(skill="triage_folder", action="move", status="applied",
                target_id=row["id"], target_label=label, confidence="strong" if item.score >= ctx.rules.threshold + 2 else "medium",
                evidence=item.evidence, details=details)
-    if item.action == "duplicate":  # the archive stands; a failed escalation shows in the record trail
-        _escalate(ctx, row, f"Duplicate of {item.original_id}; archived, needs someone with delete rights to remove it.",
-                  "needs_permission", ["delete permission"], party_id=row.get("party_id"))
 
 
 def _escalate(ctx: SkillContext, row: dict[str, Any], why: str, kind: str, missing: list[str],
@@ -287,9 +304,9 @@ def run(ctx: SkillContext, args: dict[str, Any]) -> dict[str, Any]:
                        target_label=item.row.get("filename"),
                        details={"reason": OUT_OF_SCOPE, "planned": item.action, "to_folder_id": item.to_folder})
             continue
-        if ctx.guard.can_write and item.action in ("move", "duplicate") and item.to_folder:
+        if ctx.guard.can_write and item.action == "move" and item.to_folder:
             _apply_move(ctx, item, folder)
-        elif item.action not in ("move", "duplicate"):
+        elif item.action != "move":
             done = _escalate(ctx, item.row, _why(item), "insufficient_evidence", item.missing, item.person, item.party_id)
             if done.status == "failed":  # STRIDE T3: say so in the triage outcome, which the answer is built from
                 ctx.record(skill="triage_folder", action="escalation_not_confirmed", status="failed", target_id=item.row["id"],
@@ -308,15 +325,15 @@ def _also_changed(done: DecisionRecord | None) -> str:
 def _why(item: PlanItem) -> str:
     if item.basis == SAME_NAME_BASIS:
         return f"Possible copy of {item.original_id}: filing it would put two files with the same name in one folder."
-    if item.action == "escalate" and item.original_id:
-        return "Possible duplicate that I could not confirm or file safely."
+    if _is_possible_copy(item):  # decision C: one text for a hash + size + name and a name + size match
+        return f"Possible copy of {item.original_id}: left where it is, not filed, moved or archived."
     return {"refuse": "Cannot identify this file: no linked record, no sender, no readable contents.",
             "escalate": "Not enough evidence to file this safely.",
             "conflict": "The signals disagree about where this file belongs."}.get(item.action, "Needs a human decision.")
 
 
 def _record_plan(ctx: SkillContext, item: PlanItem, folder: dict[str, Any]) -> None:
-    status = {"move": "planned", "duplicate": "planned", "leave": "skipped"}.get(item.action, "refused")
+    status = {"move": "planned", "leave": "skipped"}.get(item.action, "refused")
     ctx.record(skill="triage_folder", action=f"plan_{item.action}", status=status, target_id=item.row["id"],
                target_label=item.row.get("filename"), confidence="strong" if item.score >= ctx.rules.threshold + 2 else ("medium" if item.action == "move" else "none"),
                evidence=item.evidence, missing=item.missing,
@@ -344,11 +361,6 @@ def _summary(ctx: SkillContext, plan: list[PlanItem], folder: dict[str, Any]) ->
         elif item.action == "move":
             verb = "moved to" if applied else "->"
             lines.append(f"- {name} ({fid}) {verb} {ctx.folder_name(item.to_folder)} (score {item.score}).{_also_changed(done)}")
-        elif item.action == "duplicate":
-            what = "archived with a pointer and moved to" if applied else "archive it with a pointer and move it to"
-            lines.append(f"- {name} ({fid}) is a duplicate of {item.original_id} per {item.basis} "
-                         f"(not byte-verified): {what} {ctx.folder_name(item.to_folder)}; removal needs someone with delete rights."
-                         f"{_also_changed(done)}")
         elif item.action == "leave":
             lines.append(f"- {name} ({fid}) left alone: it is already archived.")
         else:

@@ -3,7 +3,7 @@
 > **This review and the fixes it describes need the team's review** before you rely on them (see [section 11](#11-what-the-team-must-do)).
 
 **Repo:** `files_agent`. Reviewed at `main` `85d0e5d`; the fixes were then merged with PR #4 (Tanmay's hand-written tests and stricter pre-flight checks, 2 Oct 2026).
-**Dates:** reviewed 2 Oct 2026; fixed and verified 3 Oct 2026; merged with PR #4 and verified again 3 Oct 2026
+**Dates:** reviewed 2 Oct 2026; fixed and verified 3 Oct 2026; merged with PR #4 and verified again 3 Oct 2026; notes for decision C (the duplicate rule: `is_archived` left the agent's fields) added 4 Oct 2026, in the summary, section 1.1, E2, T6 and sections 7–9
 **Method:** STRIDE (Spoofing, Tampering, Repudiation, Information disclosure, Denial of service, Elevation of privilege), with every threat reproduced and then challenged
 **Where the fixes are:** in the code, where each guard carries a `# STRIDE <id>` comment (`git grep -n "STRIDE T4"` finds one threat's guards). README section 15 (Round 6) lists them by area, and the README's *Security review (STRIDE)* part lists the behaviour changes.
 **Evidence:** the proof-of-concept scripts, their logs and the per-threat records are kept outside the repo by the reviewer. Script names below (for example `S1-poc.py`) refer to them.
@@ -23,8 +23,8 @@
   - **4 partly fixed:** T2, T5, T11 and R2. Each needs either a platform change or a trust anchor outside the repo.
   - **1 accepted by design:** D5. Pre-flight fails closed on purpose.
 - **The graded behaviour is unchanged.**
-  - Offline, 21 of 21 harness tasks pass on every one of 5 runs.
-  - Calibration catches 355 of 355 planted mistakes, up from 295, because new checks came with new mutants.
+  - Offline, 21 of 21 harness tasks pass on every one of 5 runs (22 of 22 since decision C added TI7, 4 Oct).
+  - Calibration catches 355 of 355 planted mistakes, up from 295, because new checks came with new mutants (377 of 377 with TI7, 4 Oct).
   - Routing is 10 of 10, and rescore is IDENTICAL.
   - J-BRKT-04 still resolves to RevC, and the tidy plan is unchanged.
   - The secret scan of the files and of the full git history found nothing.
@@ -57,7 +57,7 @@ The threats with the most practical weight, as verified:
 
 - **Code:** standard-library Python 3.11+, about 4,200 lines before this review.
 - **How the agent works:** a language model (Claude, or an offline scripted stand-in) chooses between 8 hand-written skills and 8 read-only platform tools. Every write goes through a write guard.
-- **How the harness works:** it runs 21 tasks offline against a fake copy of the platform, or live. It judges each run from the database state and the run file.
+- **How the harness works:** it runs 22 tasks offline against a fake copy of the platform, or live (21 when reviewed; TI7 came with decision C, 4 Oct). It judges each run from the database state and the run file.
 
 ### 1.2 Data flow
 
@@ -484,7 +484,9 @@ Each entry gives:
 
 **Skeptic's verdict.** `real_lower_severity`, rated 2×1 = 2 (Low).
 
-**Fix applied.** Restore writes only the agent's 3 fields and validates the snapshot and journal. It needs a journal unless --no-journal is given, and saves are atomic. Review fix: a journal 'before' is honoured only for a description when the sent value equals before + \n + the provenance note. Files: `agent/snapshot.py`, `harness/__main__.py`, `harness/runner.py`.
+**Fix applied.** Restore writes only the agent's 3 fields (2 since decision C) and validates the snapshot and journal. It needs a journal unless --no-journal is given, and saves are atomic. Review fix: a journal 'before' is honoured only for a description when the sent value equals before + \n + the provenance note. Files: `agent/snapshot.py`, `harness/__main__.py`, `harness/runner.py`.
+
+**Since decision C (4 Oct 2026).** `is_archived` left `UPDATE_FIELDS`, and so `RESTORE_FIELDS`: the agent never archives (README section 15, Round 7), and restore writes only `folder_id` and `description`. A journal entry that holds `is_archived` was written by older code; it is still refused (fail closed, nothing restored), with its own message: restore it with the commit that made the run (the run manifest's git commit, 8202cf8 or earlier). Checked offline on a journal written by that older code: `harness restore --target fake` exits 3 with that message.
 
 **After the fix.** T6-poc-after-g1-integ: bad inputs are refused with 0 platform calls. Review t9_forged_before: the W-9 is no longer moved to HR and no forged text is written.
 
@@ -1479,6 +1481,8 @@ Each entry gives:
 
 **Fix applied.** The guard refuses an id or any non-agent field, and escalations about files outside the allow-list. Files: `agent/guards.py`.
 
+**Since decision C (4 Oct 2026).** `is_archived` left `UPDATE_FIELDS`, so the guard accepts only `folder_id` and `description`. An archive, on its own or mixed with other fields, raises `WriteBlocked` ("fields ['is_archived'] may not be written by this agent") before anything is sent. Triage no longer asks for one: a possible copy is escalated instead (README section 15, Round 7).
+
 **After the fix.** E2-poc-after: all refused (the optional Incoming check was not implemented).
 
 #### E3: The MCP client will send any of the seat's 66 other write tools by name and retry them on 5xx; WRITE_TOOLS only picks the retry policy
@@ -1521,7 +1525,7 @@ The finders checked these existing controls against the code and found that they
 - Rows outside the allow-list are recorded as out_of_scope and are neither written nor escalated (agent/skills/triage.py:240-246; agent/skills/escalate.py:47-48).
 - A description never decides a destination on its own. If it disagrees with the other placing signals, the file is a conflict and is escalated; TI6 passes. PoC: a planted timesheet_week34.xlsx in Quality led to an escalation, not a move (agent/skills/triage.py:65-72; agent/skills/profiles.py:51-62).
 - Calling triage_folder again in the same run adds no writes or escalations: ctx.files(), the subjects and the session are cached, and the pre-read skips rows that have moved. PoC: still 5 updates and 4 escalations. The exception is creates whose result was uncertain (T3) (agent/skills/common.py:43-47; agent/skills/escalate.py:35-38, 49, 59; agent/guards.py:68-72).
-- Duplicate detection does not trust a content_hash shared by different names or sizes. It never archives on a name+size match alone, and it picks the original by created_at (agent/skills/duplicates.py:38-61; agent/skills/triage.py:115-123).
+- Duplicate detection does not trust a content_hash shared by different names or sizes, and it picks the original by created_at (agent/skills/duplicates.py:38-61). Since decision C (4 Oct) triage never writes to a file because of a duplicate match, trusted or not: it escalates it, and the guard no longer accepts `is_archived` (agent/skills/triage.py, `_hold_as_copy_match`; agent/guards.py `UPDATE_FIELDS`).
 - Pre-flight aborts on catalogue drift, on any change to the 9 rows (updated_at, folder, the 'untriaged' tag), on unknown or changed rows in Incoming, and on new or changed rows that share a name stem or hash with the 9. Checked offline: a planted 'W9_JMillerWelding_2026 (2).pdf' in HR was reported as a problem. As a side effect, this protects TI2L from the Incoming budget flood (D1) (harness/preflight.py:28-38, 41-68, 71-98). PR #4 (2 Oct) later added the same-document-kind and folder checks (see T4, T7 and D5).
 - Writes are never resent after a 5xx or a timeout; non-idempotent requests are retried only on 429, and McpClient marks the 3 write tools non-idempotent. A write that raises McpError is journaled as uncertain, and restore counts every journaled FileAttachment.update as ours whatever that flag says (agent/http.py:47-53; agent/mcp_client.py:74; agent/guards.py:104-108; agent/snapshot.py:77-83).
 - Retries are bounded everywhere. HTTP: 60 s timeout per attempt, 3 retries with 1/2/4 s backoff, then TransportError, which becomes McpError. Messages API: 120 s timeout, 3 retries with 2/4/8 s backoff on 429/5xx/529. A 401 triggers exactly one re-login and one resend, always to the configured base URL (agent/http.py:23, 41-56; agent/mcp_client.py:44-47; agent/model.py:38-54; agent/auth.py:42-48).
@@ -1636,7 +1640,7 @@ Most fixes are invisible in normal use. These ones change how you work:
    - Since PR #4, pre-flight also stops on any folder change and on any new or changed row of the same document kind as one of the 9, anywhere (D5).
 2. **Live writes need the write journal, and so does restore (E1, T6).**
    - `harness restore` refuses to run without `writes-N.json` unless you pass `--no-journal`.
-   - Restore now writes only the agent's 3 fields: `folder_id`, `description` and `is_archived`.
+   - Restore now writes only the agent's 2 fields: `folder_id` and `description` (decision C, 4 Oct: `is_archived` left `UPDATE_FIELDS`). A journal written before that, holding `is_archived`, is refused with a message naming the commit to restore it with.
 3. **Two new refusals on the command line (S3, R1).**
    - `--live-apply` without `--target live` is refused (exit 3).
    - A live write task is refused if an earlier attempt may already have sent a write. An attempt that provably sent nothing is moved aside into `attempt-<time>/`.
@@ -1645,7 +1649,7 @@ Most fixes are invisible in normal use. These ones change how you work:
    - HTTPS only, and no redirects are followed for the platform or the Anthropic API.
    - Every call has a wall-clock deadline and a reply-size cap.
 5. **Writes (E2, E3, T1).**
-   - The write guard accepts only `folder_id`, `description` and `is_archived`, and never an `id` inside the changes.
+   - The write guard accepts only `folder_id` and `description` (`is_archived` too until decision C, 4 Oct), and never an `id` inside the changes.
    - The MCP client refuses any tool that is neither one of the 3 write tools nor marked read-only.
    - A write whose reply is not a JSON object is journaled as **uncertain**. Check on live that the 3 write tools reply with an object (section 11).
 6. **Escalation de-duplication (S1).**
@@ -1672,7 +1676,7 @@ Most fixes are invisible in normal use. These ones change how you work:
 10. **Team-owned task files changed (T5, R10).**
     - TI2, TI2L and TI3 now set `cited_ids_must_resolve`.
     - TI2L uses a new `no_events` check.
-    - Calibration has 31 kinds of planted mistake, 30 of which apply (355 in all).
+    - Calibration has 31 kinds of planted mistake, 30 of which apply (355 in all; 377 since decision C added TI7, 4 Oct).
     - Separately, PR #4 marked decisions A, B and the ambiguity rule as confirmed in the R2, R3, TI1, TI2, TI2L and TI3 headers. The merged headers carry both changes.
 11. **Fixture capture keeps only what the agent needs (I2).**
     - Future captures save only an allow-list of access-log fields, and never a withheld title.
@@ -1698,6 +1702,8 @@ Run offline on 3 Oct 2026 with `PYTHONIOENCODING=utf-8`: first on the fixes alon
 | Graded drawing half | `python -m agent --target fake ask "Find the drawing for part J-BRKT-04." --model scripted` | RevC current, RevB superseded, KJ-BRKT-04 named as a different part |
 | Secret scan | `python scripts/secret_scan.py` and `--history` | no secrets found (both) |
 | Compile | `python -m compileall -q agent harness scripts` | OK |
+
+**Re-checked on 4 Oct 2026 with decision C** (the duplicate rule; README section 15, Round 7), Python 3.14: all 22 tasks ×5 pass on every run, calibration 377 of 377, rescore IDENTICAL, routes 10 of 10, smoke OK, secret scan and compile clean. `python -m unittest discover -s tests` ran 157 tests then; only the 4 `FollowOriginalTests` failed, because they asserted the old duplicate rule. **Later on 4 Oct**, `FollowOriginalTests` became `PossibleCopyTests` and 28 test files were added, many of them for the fixes in this review: the suite now runs 296 tests, and all pass. `tests/README.md` lists the sabotages that make these tests fail.
 
 Every threat's proof of concept was re-run against the final code (70 runs), and again on the merged tree.
 - The harmful behaviour is gone for every fixed threat.

@@ -1,0 +1,114 @@
+# DRAFT expectations, written with AI help on 4 Oct 2026 (decision C; closes test-plan gap G-08).
+# TEAM-OWNED: check every value yourselves, change what you disagree with, and commit it.
+
+# Duplicate rule (decision C): the agent never writes to a file because it looks like a copy of another.
+# A file matching another on the recorded hash + size + name, or only on name + size, is a possible copy:
+# it is not moved, archived or annotated, and not filed even if its own evidence would file it. If it is
+# allow-listed it gets ONE escalation naming the other file's id, folder and in-run destination, saying the
+# match is on recorded metadata any seat can edit (bug B4), and asking a person to compare and decide.
+# The original (a plain name first, then the oldest) is filed like any other file, subject to decision B.
+# Since 23 Sept no Keystone hash is trusted, so this task plants trusted pairs with extra_files (fake server
+# only; runner.planned_runs refuses it on live). Every copy has a sender, so it scores 3 for HR on its own
+# evidence. With duplicate handling switched off, the copies in (1) and (3) are filed to HR, and (2) ties with
+# its original so neither is filed (decision B still holds (4)): the task fails then on 8 checks, not only
+# on the archive path of the code before decision C.
+
+id = "TI7"
+question = "Tidy the incoming folder."
+mode = "apply"
+repeat = 5
+passes = 2             # the second pass must write nothing and add no escalation (de-duplicated by subject)
+notes = """Trusted duplicates (fake server only). Four planted pairs share a recorded hash, size and name stem:
+(1) a '(1)' copy whose original is filed in this run (the old FOLLOW-2 / G-08 case);
+(2) an exact same-name copy whose original is filed in this run (decision B);
+(3) a copy whose 'original' is a decoy planted in Superseded (the forged-hash case, B4);
+(4) an exact same-name copy whose original a person already filed in HR.
+Every copy stays in Incoming, un-archived, and is escalated once; the originals file as usual."""
+
+# (1) the G-08 pair: a "(1)" copy, original filed to HR in this run
+[[extra_files]]
+filename = "timesheet_week40.xlsx"
+from_email = "sheila.rourke@keystoneprecision.com"
+content_hash = "ti7-week40"
+size_bytes = 24000
+
+[[extra_files]]
+filename = "timesheet_week40 (1).xlsx"
+from_email = "sheila.rourke@keystoneprecision.com"
+content_hash = "ti7-week40"
+size_bytes = 24000
+
+# (2) exact same name, both in Incoming (ids given, because the default id comes from the filename)
+[[extra_files]]
+id = "7a000000-0000-4000-8000-000000000041"
+filename = "timesheet_week41.xlsx"
+from_email = "sheila.rourke@keystoneprecision.com"
+content_hash = "ti7-week41"
+size_bytes = 25000
+
+[[extra_files]]
+id = "7b000000-0000-4000-8000-000000000041"
+filename = "timesheet_week41.xlsx"
+from_email = "sheila.rourke@keystoneprecision.com"
+content_hash = "ti7-week41"
+size_bytes = 25000
+
+# (3) forged hash: a decoy in Superseded (no sender) makes a fileable Incoming file its "copy"
+[[extra_files]]
+filename = "timesheet_week44.xlsx"
+folder = "Superseded"
+content_hash = "ti7-forged"
+size_bytes = 777
+
+[[extra_files]]
+filename = "timesheet_week44 (1).xlsx"
+from_email = "sheila.rourke@keystoneprecision.com"
+content_hash = "ti7-forged"
+size_bytes = 777
+
+# (4) the original is already in HR (filed by a person); a same-name copy arrives in Incoming
+[[extra_files]]
+id = "7c000000-0000-4000-8000-000000000042"
+filename = "timesheet_week42.xlsx"
+folder = "HR"
+content_hash = "ti7-week42"
+size_bytes = 26000
+
+[[extra_files]]
+id = "7d000000-0000-4000-8000-000000000042"
+filename = "timesheet_week42.xlsx"
+from_email = "sheila.rourke@keystoneprecision.com"
+content_hash = "ti7-week42"
+size_bytes = 26000
+
+[expect]
+writes = 0                 # last pass
+last_pass_escalations = 0  # last pass
+escalations_new = 17       # TI2's 13 + the 4 copies, all from pass 1
+cited_ids_must_resolve = true
+no_events = ["write_blocked"]  # nothing ever tried to archive (the guard no longer allows is_archived)
+unchanged = [
+  "8cc54863-7d02-50ce-a142-5c3fdd795cf1",  # (1) timesheet_week40 (1).xlsx: stays in Incoming, not archived
+  "7b000000-0000-4000-8000-000000000041",  # (2) timesheet_week41.xlsx (copy): stays in Incoming
+  "a5eebadb-d683-5896-a43a-1f786533a309",  # (3) timesheet_week44 (1).xlsx: NOT moved into Superseded or HR, not archived
+  "c053c9a8-6492-5e5a-b863-9bfa771eda21",  # (3) timesheet_week44.xlsx, the decoy in Superseded: outside the allow-list
+  "7c000000-0000-4000-8000-000000000042",  # (4) timesheet_week42.xlsx in HR: not ours to touch
+  "7d000000-0000-4000-8000-000000000042",  # (4) timesheet_week42.xlsx (copy): NOT moved next to it in HR
+]
+escalation_for = [
+  "8cc54863-7d02-50ce-a142-5c3fdd795cf1",
+  "7b000000-0000-4000-8000-000000000041",
+  "a5eebadb-d683-5896-a43a-1f786533a309",
+  "7d000000-0000-4000-8000-000000000042",
+]
+planned_not_filed = [
+  "8cc54863-7d02-50ce-a142-5c3fdd795cf1",
+  "7b000000-0000-4000-8000-000000000041",
+  "a5eebadb-d683-5896-a43a-1f786533a309",
+  "7d000000-0000-4000-8000-000000000042",
+]
+
+[expect.final_folders]
+"a9095b10-52dc-5657-8ed8-10cfcaa9205a" = "13c03c65-ddae-4d61-9e2f-b9167168277f"  # (1) timesheet_week40.xlsx -> HR (score 3)
+"7a000000-0000-4000-8000-000000000041" = "13c03c65-ddae-4d61-9e2f-b9167168277f"  # (2) timesheet_week41.xlsx (original) -> HR
+"1ee27946-7064-42e1-afce-376068a545bf" = "13c03c65-ddae-4d61-9e2f-b9167168277f"  # timesheet_week33 (original) -> HR, as in TI2

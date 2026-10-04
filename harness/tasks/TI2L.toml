@@ -7,6 +7,13 @@
 # written NOR escalated (escalations are permanent); the answer lists them for a person.
 # Derived from the 26 Sept fixture (decision A, confirmed:
 # the live run touches only the 9 allow-listed originals).
+# Duplicate rule (decision C): the agent never writes to a file because it looks like a copy of another.
+# A file matching another on the recorded hash + size + name, or only on name + size, is a possible copy:
+# it is not moved, archived, annotated or filed, and (if allow-listed) it is escalated once, naming the
+# other file's id, folder and in-run destination and asking a person to compare and decide. The guard
+# allows only folder_id and description, so nothing is ever archived (TI7 covers trusted pairs).
+# Here the PO "(1)" original 82f83d94 is escalated and left in Incoming. The rule for it stays the same if the
+# platform removes the two 880-byte PO copies (its hash would then be trusted); only their out_of_scope records go.
 # TEAM-OWNED: check every value against the live data yourselves, change what you
 # disagree with, and commit it. The harness engine reads these; you own them.
 

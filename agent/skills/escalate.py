@@ -19,7 +19,7 @@ from agent.safe_reads import list_all
 from agent.skills.common import SkillContext, error_text, ev
 from agent.textsafe import one_line
 
-REASON_CODES = {"insufficient_evidence": "other", "out_of_seat": "policy_refusal", "needs_permission": "other"}
+REASON_CODES = {"insufficient_evidence": "other", "out_of_seat": "policy_refusal"}
 PERSON_LIMIT = 200  # a name (at most 100) plus its provenance label
 REASON_LIMIT = 1500
 

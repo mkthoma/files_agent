@@ -305,7 +305,7 @@ def wrong_plan(run: Run) -> Run | None:
         return None
     m = _clone(run)
     fid = next(iter(planned))
-    for r in _last(m)["records"]:
+    for r in _last(m)["records"]:  # the same actions verifiers.planned_folders accepts (older runs hold plan_duplicate)
         if r["target_id"] == fid and r["action"] in ("plan_move", "plan_duplicate"):
             r["details"]["to_folder_id"] = "wrong-folder"
     return m

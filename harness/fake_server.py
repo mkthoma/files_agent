@@ -18,6 +18,10 @@ The first five are one-shot faults. They fire only while `armed` is True. The ha
 runner disarms them during its own set-up and state capture and arms them for the
 agent's pass, so the agent is the one that meets them. A server you build yourself
 (e.g. in a test) starts armed.
+
+Extra files (a task's `extra_files`) are added as FileAttachment rows. Each one's id comes from
+its filename (see extra_file_id) unless the spec gives an `id`, so two extras can share a name.
+An id that is already a row (a fixture row or an earlier extra) is refused, never replaced.
 """
 from __future__ import annotations
 
@@ -40,6 +44,11 @@ class RpcError(Exception):
     def __init__(self, code: int, message: str, data_code: str) -> None:
         super().__init__(message)
         self.code, self.message, self.data_code = code, message, data_code
+
+
+def extra_file_id(spec: dict[str, Any]) -> str:
+    """The row id of an extra file: its own `id`, else one derived from its filename (stable across runs)."""
+    return str(spec.get("id") or uuid.uuid5(uuid.NAMESPACE_URL, "extra-file:" + spec["filename"]))
 
 
 def _now() -> str:
@@ -73,7 +82,9 @@ class FakeServer:
         return next(f["id"] for f in self.tables["DriveFolder"].values() if f["name"].lower() == name.lower())
 
     def _add_file(self, spec: dict[str, Any]) -> None:
-        file_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "extra-file:" + spec["filename"]))
+        file_id = extra_file_id(spec)
+        if file_id in self.tables["FileAttachment"]:  # never silently replace a fixture row or an earlier extra
+            raise ValueError(f"extra file {spec['filename']!r}: id {file_id} is already used; give it its own `id`")
         folder = spec.get("folder", "Incoming")  # "" = in no folder
         row = {"id": file_id, "filename": spec["filename"], "folder_id": self._folder_id(folder) if folder else None,
                "entity_type": spec.get("entity_type"), "entity_id": spec.get("entity_id"), "description": spec.get("description"),
