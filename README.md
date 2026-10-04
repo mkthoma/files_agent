@@ -94,13 +94,11 @@ Triage of 'Incoming' (plan only - nothing was changed):
 [fake | plan | model scripted | writes 0 | cost {'turns': 2, 'mcp_calls': 14, 'input_tokens': 0, 'output_tokens': 0, 'usd': 0.0} | stop end_turn]
 ```
 
-NOTE: On this branch, the 4 `FollowOriginalTests` in `tests/test_escalate.py` fail. They assert the duplicate rule from before decision C. They fail until the team deletes 2 of them and rewrites the other 2 by hand. Decision C (4 Oct 2026) says that the agent never writes to a possible copy. It only escalates it ([triage step 3](docs/architecture.md#triage_folder-evidence-scored-filing)). [`tests/README.md`](tests/README.md#decision-c-scenarios-12-not-covered-yet) tells you which tests to delete and which tests to rewrite.
-
-7. Run the hand-written tests: `python -m unittest discover -s tests`. This step takes 9–15 s. On this branch, the output ends with `FAILED (failures=2, errors=2)`, because 4 tests fail (see the NOTE before this step). After the team deletes 2 of them and rewrites the other 2, the output ends with `OK` (your count and time are different):
+7. Run the hand-written tests: `python -m unittest discover -s tests`. This step takes 9–15 s. The output ends with these lines (your time is different):
 
 ```text
 ----------------------------------------------------------------------
-Ran <n> tests in <n>s
+Ran 296 tests in <n>s
 
 OK
 ```
@@ -161,9 +159,9 @@ The code enforces the rules below, because other teams also use Keystone. The nu
 
 - The **hand-written tests** are in `tests/test_*.py`. The file `tests/helpers.py` holds the shared set-up and no tests.
 - The tests use plain `unittest`. They run offline, with no platform, no model and no network.
-- On this branch, decision C makes the 4 `FollowOriginalTests` in `tests/test_escalate.py` fail, because they assert the old duplicate rule. They fail until the team deletes 2 of them and rewrites the other 2 by hand.
-- To run the tests, type `python -m unittest discover -s tests`. To see the name of each test, add `-v`. On this branch, the output ends with `FAILED (failures=2, errors=2)`. All other tests pass.
-- [`tests/README.md`](tests/README.md) tells you what each file covers and which plan task it checks. It also tells you what is still to write.
+- There are 296 tests in 48 files (4 Oct 2026). All of them pass. `PossibleCopyTests` in `tests/test_escalate.py` checks the duplicate rule of decision C.
+- To run the tests, type `python -m unittest discover -s tests`. To see the name of each test, add `-v`. The output ends with `Ran 296 tests` and `OK`.
+- [`tests/README.md`](tests/README.md) tells you what each file checks and how to prove that a test finds a bug. It also tells you what has no test yet.
 - The tests check fixed numbers from the newest fixture, `harness/fixtures/keystone/2026-09-26`: 212 tools, 113 file rows, 5 moves and 13 escalations. After each new capture of the fixture, do these steps in 1 commit:
   1. Move the fixture pin in `tests/helpers.py` to the new fixture.
   2. Run the tests again.
@@ -174,7 +172,7 @@ The code enforces the rules below, because other teams also use Keystone. The nu
 
 ## Results
 
-These results are from commit `9d6f962` (decision C). They ran offline on 4 Oct 2026 with Python 3.14.4.
+These results are from commit `9d6f962` (decision C). They ran offline on 4 Oct 2026 with Python 3.14.4. The test row is from the same code with the 48 test files of 4 Oct.
 
 NOTE (for the team): Run these checks again on the commit that merges this README. Write the id of that commit here.
 
@@ -185,7 +183,7 @@ NOTE (for the team): Run these checks again on the commit that merges this READM
 | Rescore from disk | `python -m harness rescore runs/<set>` | `rescore IDENTICAL to score.json` |
 | Calibration | `python -m harness calibrate runs/<set>` | `377 of 377 injected faults caught.` |
 | Routes, scripted model | `python -m harness routes` | `10 of 10 routed as expected.` |
-| Hand-written tests | `python -m unittest discover -s tests` | All pass, except the 4 `FollowOriginalTests` (see [Tests](#tests)). |
+| Hand-written tests | `python -m unittest discover -s tests` | `Ran 296 tests`, then `OK` (48 files, see [Tests](#tests)). |
 | Secret scan of the clone | `python scripts/secret_scan.py` | `no secrets found` |
 
 The calibrate output calls the planted mistakes "injected faults".

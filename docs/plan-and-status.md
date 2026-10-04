@@ -41,7 +41,7 @@ This repo holds an AI agent for the **Files** seat of the AgentSwitch platform. 
 
 More points:
 
-- **The team writes the Phase 5 tests by hand.** The brief says *"a test written by Claude or Codex scores zero"*. So a team member writes and commits every `tests/test_*.py` file. There are 157 tests so far: 78 in PR #4, and 79 more in PR #5. `tests/README.md` is the guide. It tells what the tests cover and what tests are still to write.
+- **The team writes the Phase 5 tests by hand.** The brief says *"a test written by Claude or Codex scores zero"*. So a team member must write and commit every `tests/test_*.py` file. There are 296 tests in 48 files so far (4 Oct 2026). `tests/README.md` is the guide. It tells what the tests cover and what tests are still to write.
 - **Some files are team-owned drafts.** [Files you own](#12-files-you-own) lists them. Review them. Then change them.
 - **Staff question Q3 is still open.** Its answer decides if AI-assisted agent and harness code is acceptable. The code assumes that it is acceptable. It also assumes that the team must write only the tests by hand. See [Questions for staff](#66-questions-for-staff).
 
@@ -49,7 +49,9 @@ More points:
 
 ## Tests
 
-The team writes the Phase 5 tests **by hand**. PR #4 (2 Oct 2026) added 78 tests, and PR #5 (3 Oct 2026) added 79 more. They are plain `unittest` tests. They use only the standard library. They run offline, against the fake server (made from the captured fixture) or against small substitutes. They never call the live platform, the model or the network.
+The team writes the Phase 5 tests **by hand**. PR #4 (2 Oct 2026) added 78 tests, and PR #5 (3 Oct 2026) added 79 more. On 4 Oct 2026, the `duplicate_rule_fix` branch (PR #6) added 28 more test files. It also replaced `FollowOriginalTests` in `test_escalate.py` with `PossibleCopyTests`. Now there are 296 tests in 48 files.
+
+They are plain `unittest` tests. They use only the standard library. They run offline, against the fake server (made from the captured fixture) or against small substitutes. They never call the live platform, the model or the network.
 
 **Run them** from the repo root:
 
@@ -57,7 +59,7 @@ The team writes the Phase 5 tests **by hand**. PR #4 (2 Oct 2026) added 78 tests
 python -m unittest discover -s tests -v
 ```
 
-**On 3 Oct 2026:** the output was `Ran 157 tests … OK` in 3 runs in a row, under Python 3.14. PR #4's 78 tests also ran under 3.11. They ran on PR #4 alone, and on PR #4 merged with the STRIDE fixes. The machine that ran PR #5's tests did not have 3.11.
+**On 4 Oct 2026:** the output was `Ran 296 tests … OK` in 3 runs in a row, under Python 3.14.4. On 3 Oct, it was `Ran 157 tests … OK`, also in 3 runs in a row. PR #4's 78 tests also ran under 3.11. They ran on PR #4 alone, and on PR #4 merged with the STRIDE fixes. The machine that ran PR #5's tests did not have 3.11.
 
 A review of PR #4 broke the code on purpose for each sabotage in [7.4](checking.md#74-are-your-own-tests-any-good-phase-5). It also broke the decision rules and the pre-flight rules. On PR #4 alone, each break made at least 1 of these tests fail.
 
@@ -67,16 +69,13 @@ A review of PR #4 broke the code on purpose for each sabotage in [7.4](checking.
 - The agent gives the model the raw row instead of the placeholder.
 - When 2 parts share a code, the agent picks the first match.
 
-The review of PR #4 found 2 gaps, and they are **still open**. After a second run of both sabotages on the merged tree, all 157 tests still passed.
+On 4 Oct, the sabotage for each STRIDE fix in `tests/README.md` made at least 1 test fail.
 
-**Decision C (4 Oct 2026)** changed the duplicate rule (see step 3 of [triage_folder](architecture.md#triage_folder-evidence-scored-filing)). Because of this, the 4 tests of `FollowOriginalTests` in `test_escalate.py` (PR #5) now fail. They assert the old rule, where a trusted copy follows its original and the agent archives the copy. All other tests pass.
+The review of PR #4 found 2 gaps, and they are **still open**. On 4 Oct, both sabotages ran again with all 48 test files, and all 296 tests still passed.
 
-👤 Do these steps by hand:
+**Decision C (4 Oct 2026)** changed the duplicate rule (see step 3 of [triage_folder](architecture.md#triage_folder-evidence-scored-filing)). The 4 tests of `FollowOriginalTests` in `test_escalate.py` (PR #5) asserted the old rule. In that rule, a trusted copy follows its original, and the agent archives the copy. These tests are gone. A commit deleted 2 of them and changed the other 2 into `PossibleCopyTests`, which asserts the new rule. All 296 tests pass.
 
-1. Delete 2 of the 4 tests.
-2. Rewrite the other 2 tests.
-
-[`tests/README.md`](../tests/README.md#decision-c-scenarios-12-not-covered-yet) tells which tests to delete and which to rewrite. It also lists the new scenarios to write.
+[`tests/README.md`](../tests/README.md#decision-c-scenarios-that-are-still-open) lists the open decision C scenarios.
 
 | File | Tests | What it covers | Plan task | Code under test |
 |---|---|---|---|---|
@@ -93,29 +92,32 @@ The review of PR #4 found 2 gaps, and they are **still open**. After a second ru
 | `test_tasks_loader.py` | 5 | The loader refuses an unknown `[expect]` key or a bad mode. Only 1 task can be `live_write`, and that task needs `live_allowlist`. A good file loads. | T4.1 | `harness/tasks.py` |
 | `test_find_drawing.py` | 14 | J-BRKT-04 resolves to RevC. RevB counts as superseded, KJ-BRKT-04 shows as a look-alike, and there are no writes. A lower-case code finds the same drawing. The agent refuses an unknown code, and 2 parts that share a code. 4 spellings of `Rev B`.<br>A tag must match as a whole (`unreleased` is not `released`). A drawing in Superseded counts as superseded. Each of these cases names **no** current drawing: 2 revisions that are not superseded, swapped archive flags, mixed `Rev1`/`RevC`, and a superseded newest revision. | T2.3 (FD-1–FD-11) | `agent/skills/find_drawing.py`, `agent/skills/revisions.py` |
 | `test_triage_scoring.py` | 18 | The pure `_score`: a description plus a sender signal scores 0 and picks no folder. If a filename and a linked record do not agree, the result is a conflict that names both folders. The threshold is inclusive: score 2 escalates, and exactly 3 moves. Files that the agent moved are not evidence. Files that people moved are evidence.<br>All 18 Incoming items give 5 moves, 13 not filed, and no writes. The planted W-9 description is a conflict, and the file stays. A moved file keeps its description, and the agent adds its note at the end. The agent does not change an archived file in Incoming. | T5.2 (SCORE-1–SCORE-9) | `agent/skills/triage.py`, `agent/skills/profiles.py`, `agent/filing_rules.toml` |
-| `test_escalate.py` | 13 | Same-name rank: the agent moves the file with the higher score. It escalates the lower one as a possible copy. If the scores are equal, the agent moves neither file. The 880-byte copies escalate with the basis "same filename in the destination", and they point at their originals.<br>4 tests (`FollowOriginalTests`) assert that a trusted copy goes to the archive next to its moved original, with a pointer. This is the old duplicate rule, so these tests fail under decision C (see above).<br>The live cap updates only the 5 originals, and escalates 4. It records the 9 copies as out of scope. In plan mode, the Escalator records "planned" and creates nothing. A second tidy writes nothing. All 13 escalations are `already_escalated`, with the ids of pass 1. | T5.8, decisions A and B | `agent/skills/escalate.py`, `agent/skills/triage.py`, `agent/guards.py`, `agent/runtime.py` |
+| `test_escalate.py` | 11 | Same-name rank: the agent moves the file with the higher score. It escalates the lower one as a possible copy. If the scores are equal, the agent moves neither file. The 880-byte copies escalate with the basis "same filename in the destination", and they point at their originals.<br>Decision C (`PossibleCopyTests`, 2 tests): a trusted copy stays in Incoming. The agent does not archive it or change it. It makes exactly 1 escalation, which names the original and asks a person to compare the 2 files.<br>The live cap updates only the 5 originals, and escalates 4. It records the 9 copies as out of scope. In plan mode, the Escalator records "planned" and creates nothing. A second tidy writes nothing. All 13 escalations are `already_escalated`, with the ids of pass 1. | T5.8, decisions A, B and C | `agent/skills/escalate.py`, `agent/skills/triage.py`, `agent/guards.py`, `agent/runtime.py` |
 | `test_runner.py` | 13 | The runner refuses 2 `live_write` tasks. In the real task folder, only TI2L is `live_write`. The runner refuses 4 live misuses of `planned_runs`. It refuses the last one because the shell-only `AS_ALLOW_WRITES` is not set. It plans 5, 2 and 1 runs.<br>Pre-flight: no problem and 9 warnings, and each warning names 1 copy. The pre-flight tests also include a same-name row, and a copy that has left Incoming.<br>Each of these counts as 1 failed run: a failed set-up, a crash, an absent run file and a half-written run file. `score`/`rescore` survive them. Calibration catches 18 of 18 planted mistakes on a D1 run. | T4.1, T4.2, T4.6, T4.8, T4.9 | `harness/tasks.py`, `harness/runner.py`, `harness/preflight.py`, `harness/score.py`, `harness/calibrate.py` |
 | `test_privacy.py` | 7 | An e-sign row becomes a placeholder that keeps the id, size and folder. The input row does not change. Open rows return with no change. A planted canary reaches `ctx.files()`, but `list_files` shows 30 rows and withholds 84. The model's own `FileAttachment.get`, `FileAttachment.list` and `DriveAccessLog.list` never show the title of the canary. | T2.11 (PRIV-1–PRIV-4) | `agent/privacy.py`, `agent/loop.py`, `agent/skills/access.py` |
 | `test_loop.py` | 7 | If 1 model reply has 2 `tool_use` blocks, both skills run in 1 turn (RevC, 5 planned moves, and no writes in plan mode). The loop offers the model exactly 8 skills and 8 read-only MCP tools, and no write tool. It drops a tool when the read-only hint of that tool is false. `compose` flags an id that no tool showed, whatever its letter case. It counts the record trail, and it keeps look-alikes out of the trail. | T3.0, T3.2 | `agent/loop.py`, `agent/answer.py`, `agent/catalog.py` |
 | `test_config.py` | 4 | `.env` parse: the parser removes the single quotes from 4 keys. It skips a whole-line comment and a line with no `=`. The value of `AS_MODEL` in the shell has priority over the value in the file. The code always lets a fake apply and a live plan run. A live apply needs Keystone, apply mode and `AS_ALLOW_WRITES` **from the shell**. The code ignores the same value in `.env`. | T2.2 | `agent/config.py`, `agent/runtime.py` |
 | `test_fake_server.py` | 2 | One-shot faults fire once. `http401_once` answers only the first `/api/mcp` call. `error_in_200:Item.list` answers only the first `Item.list` (code `agent_error`). The next call of each one succeeds. A disarmed server does not fire the 401. | T4.5 | `harness/fake_server.py` |
 | `test_overview.py` | 1 | The Drive overview shows 15 files, but 30 of the 113 rows are files in folders. The agent reports this as a contradiction. The answer gives the `entity_type 'Drive'` reason, and there is 1 `info` record. | T2.11 | `agent/skills/overview.py` |
-| `helpers.py` | — | This is not a test file. It holds the shared set-up for PR #5's tests. The set-up has the pinned 26 Sept fixture, and a fake server with planted rows and faults. It also has a runtime made on that server, with the faults off. Its settings ignore both the shell and `.env`. | — | — |
-| **20 files** | **157** | | | |
+| `helpers.py` | — | This is not a test file. It holds the shared set-up that most test files use. The set-up has the pinned 26 Sept fixture, and a fake server with planted rows and faults. It also has a runtime made on that server, with the faults off. Its settings ignore both the shell and `.env`. | — | — |
+| 28 more files (4 Oct 2026, `duplicate_rule_fix`) | 141 | Tests for the STRIDE fixes, more unit scenarios and decision C. [`tests/README.md`](../tests/README.md#test-files) gives each file, its count and what it checks. | — | — |
+| **48 files** | **296** | | | |
 
 **Notes:**
 
-- The tests pin the numbers of the fixture (5 moves, 13 escalations, 9 warnings, 212 tools, 113 rows, 30 in folders, and some ids). PR #4's files load the **newest** capture. PR #5's files use `tests/helpers.py`, which pins `harness/fixtures/keystone/2026-09-26` by hand. On 4 Oct 2026, that is the newest capture, so the 2 sets of tests agree. The live write run needs a fresh capture first. After that capture, do the steps below.
+- The tests pin the numbers of the fixture (5 moves, 13 escalations, 9 warnings, 212 tools, 113 rows, 30 in folders, and some ids). Three files (`test_decisions.py`, `test_duplicates.py` and `test_triage.py`) load the **newest** capture. 31 of the 48 files use `tests/helpers.py`, which pins `harness/fixtures/keystone/2026-09-26` by hand. On 4 Oct 2026, that is the newest capture, so the 2 sets of tests agree. The live write run needs a fresh capture first. After that capture, do the steps below.
 
-  CAUTION: Put the new numbers and the new pin in the same commit. If you do not move the pin, PR #5's tests continue to check the 26 Sept data, with no error.
+  CAUTION: Put the new numbers and the new pin in the same commit. If you do not move the pin, the pinned tests continue to check the 26 Sept data, with no error.
 
-  1. Run the tests again immediately.
-  2. Update the numbers that changed.
-  3. **Move the pin in `helpers.py`.**
+  1. **Move the pin in `helpers.py`.**
+  2. Run the tests.
+  3. Update each number that changed.
+  4. Run the tests again.
+  5. Commit all of these changes in one commit.
 - The harness tasks, `python -m harness calibrate` and the checks in [section 7](checking.md#7-how-to-check-that-each-part-works) are **not** these tests. AI helped to write them.
-- **Still to write by hand:** the plan has 94 unit scenarios. Tests now cover 37 of them fully and 35 of them partly. 22 scenarios have no test. On 4 Oct, decision C replaced FOLLOW-1 and FOLLOW-2 with 12 new scenarios. Before that, the counts were 84, 37, 37 and 10.
+- **Still to write by hand:** [`tests/README.md`](../tests/README.md#what-is-not-tested-yet) lists what has no test yet (4 Oct 2026). It gives 10 decision C scenarios and the 2 gaps from the review of PR #4. It also gives 33 unit scenarios that tests cover only in part. Each item has the sabotage that must make its test fail.
 
-  Most STRIDE fixes still have no test of their own. [`tests/README.md`](../tests/README.md) lists each scenario, with the sabotage that must make its test fail.
+  Each STRIDE fix that the guide listed now has a test. Some STRIDE items stay open in part.
 
 ---
 
@@ -142,7 +144,7 @@ The Step 4 brief says: build the agent, then build the harness. The agent answer
 | **Agent** | It answers the seat's questions about live data that can change. It uses **MCP**, it runs on your machine, and it uses **your own model key**. | `python -m agent ask "<question>"`. Loop: `agent/loop.py`. MCP client: `agent/mcp_client.py`. Real model: `agent/model.py` (`--model anthropic`).<br>It needs `ANTHROPIC_API_KEY`. The default model is `claude-sonnet-5`. Set the model with `AS_MODEL`. | ✅ built · 🟡 so far, live runs used only the offline *scripted* model. The real model has not run yet. |
 | **Harness** | **Your own loop.** The checks **read the database, not the agent's prose.** **The harness writes every run to disk before it scores the run.** | `python -m harness run …`. First, `harness/runner.py` writes `runs/<set>/<task>/<n>.jsonl`. Then `harness/score.py` scores the run with the checks in `harness/verifiers.py`. There are 22 tasks in `harness/tasks/*.toml`. | ✅ built · 👤 the task expectations are AI-written drafts. You must review them and own them. |
 | **A refusal task** | At least 1 task where the right answer is a refusal | R1 (payslips), R2 (delete, ambiguous), R3 (file contents), R4 (`Untitled.pdf`), R5 (delete by id). TI1–TI3 also refuse or escalate 13 files offline (4 originals and 9 copies). TI2L does this for 4 originals. | ✅ |
-| **Tests** | The team writes them **by hand**. "A test written by Claude or Codex scores zero." 10 points per test. | `tests/`: 157 hand-written tests in 20 files. PR #4 (2 Oct 2026) added 78 tests, and PR #5 (3 Oct 2026) added 79. See [Tests](#tests). Run: `python -m unittest discover -s tests -v` | ✅ 157 written, and all passed (3 Oct 2026) · 👤 more to write (`tests/README.md`) |
+| **Tests** | The team writes them **by hand**. "A test written by Claude or Codex scores zero." 10 points per test. | `tests/`: 296 tests in 48 files (4 Oct 2026). See [Tests](#tests). Run: `python -m unittest discover -s tests -v` | ✅ 296 written, and all pass (4 Oct 2026) · 👤 more to write (`tests/README.md`) |
 | **Step 3 claims** | Each Q3 claim in the one-page gap report has a harness task that proves it | Claim 1 → C1. The figures in the updated report match C1 and the 26 Sept fixture. The Drive overview shows 15 files / 13 KB, against 30 rows / 7.1 MB in folders. Claim 2 → R1–R5, TI1–TI3 and TI2L. TI2 and TI2L escalate `scan0042.pdf`, the example in the report. Claim 3 → TI4 (a row changed *before* the agent's write) and TI5 (a row changed immediately *after* it). | ✅ offline. C1 and R3 also passed live on 22 Sept, before the data change (scripted model, ×1). |
 | **Bugs** | 100 points per real bug | This seat raised 13 bugs (F1–F5, L1–L8) on 22 Sept 2026. By 27 Sept, this seat had 45 (see [5.6](bugs.md#56-bugs-raised)). The gap report is [`docs/gap_report.md`](gap_report.md). | 🐞 raised · ⛔ the re-check (T6.4) is not done |
 
@@ -288,7 +290,7 @@ These items are still to do:
 - staff answers (T0.1)
 - a secret scan of the repo (T0.2). The repo is now public.
 - ownership of the drafts, and confirmation of decisions A and B (T2.5, T3.1, T4.1, T4.3, T4.4)
-- **more of your tests (Phase 5)**. There are 157 tests: 78 in PR #4 and 79 in PR #5. `tests/README.md` lists the tests that are still to write for the STRIDE fixes, decision C and the other scenarios.
+- **more of your tests (Phase 5)**. There are 296 tests in 48 files (4 Oct 2026). `tests/README.md` lists the open scenarios and STRIDE checks.
 - the real-model runs (T6.1, T6.2)
 - the live write run (TI2L)
 - the bug re-check (T6.4)
@@ -323,7 +325,7 @@ Phase 5 has no milestone of its own: the plan spreads it across M1–M5. PR #4 a
 | Must | A8 undo log and clobber check | 🟡 checks, notes, snapshot, write journal and restore exist. Restore has not run live yet. |
 | Must | A9 routed escalation | ✅ built · live check not done yet (T2.10). Escalations have no assignee. |
 | Must | Tasks D1–D3, TI1–TI4, R1–R4, C1 | ✅ 5/5 each offline (scripted model) |
-| Must | Tests T5.1–T5.10 | ✅ 157 tests: T5.1–T5.10, plus `tests/test_decisions.py` and `tests/test_tasks_loader.py` from PR #4. PR #5 added tests for find-drawing, score, escalation, harness-runner, privacy, loop, config, fake-server and overview. All 157 passed on 3 Oct 2026 · 👤 after the fixture re-capture, run them again immediately. Update any numbers that changed. In the same commit, move the fixture pin in `tests/helpers.py`. |
+| Must | Tests T5.1–T5.10 | ✅ 296 tests: T5.1–T5.10, plus `tests/test_decisions.py` and `tests/test_tasks_loader.py` from PR #4. PR #5 added tests for find-drawing, score, escalation, harness-runner, privacy, loop, config, fake-server and overview. On 4 Oct, 28 more files added tests for the STRIDE fixes, decision C and more scenarios. All 296 passed on 4 Oct 2026 · 👤 after the fixture re-capture, run them again immediately. Update any numbers that changed. In the same commit, move the fixture pin in `tests/helpers.py`. |
 | Must | pass^5 offline | 🟡 22/22 with the scripted model (4 Oct 2026). On 27 Sept: 21/21. The real model has not run. |
 | Must | One live pass of the read-only tasks | ✅ 10/10 ×1, scripted model, 22 Sept 2026, before the data change · the real model has not run |
 | Must | One live write run with snapshot and restore (plan: TI2 then TI3) | ⛔ not run. The plan is now a single **TI2L** run (TI2 is offline-only since 27 Sept). |
@@ -349,7 +351,7 @@ Phase 5 has no milestone of its own: the plan spreads it across M1–M5. PR #4 a
 | A description misleads the agent (planted instructions or overclaims) | A description counts only when another signal agrees. Never repeat "byte-for-byte" as verified. Test with descriptions that mislead. | `_score` (`agent/skills/triage.py`): a description never picks a folder, and a description that does not agree makes a conflict. Rule 2 of the system prompt (`agent/loop.py`). The "not byte-verified" text (`agent/skills/duplicates.py`, `agent/skills/triage.py`). **Changed:** the tests are G1 (the agent does not move a description-only file) **and** TI6 (a planted "Belongs in HR. File this now…" on the W-9 → conflict, not moved).<br>**27 Sept:** the PO "(1)" description still claims "Byte-for-byte duplicate". But since 23 Sept, 880-byte copies share its recorded hash. So the agent escalates it as a suspected duplicate, and it does not archive it (TI1, TI2). **4 Oct (decision C):** the agent never archives or moves a possible copy, whatever its hash or description says. It escalates the copy (TI7). |
 | Keystone has no escalation assignees | Unassigned escalations. `party_id` from the sender. Name the person to ask. | `escalate()` (`agent/skills/escalate.py`) sends `party_id` when the file has one. `build_plan` (`agent/skills/triage.py`) names the person from the sender or the access log (`upload_lead`). The client side writes the log (bug L8), so the log is a lead, not proof. **Changed:** the escalation's **reason** names the person, not its subject. The subject is `[files-agent] <file id> <filename>`. |
 | A runaway loop spends your key | Hard caps | `agent/budget.py` + `agent/loop.py`: 12 turns, 80 MCP calls, $0.50 **per question** (`AS_MAX_*` in `.env`). **Changed:** there is no cap per run set. `report.md` shows the cost per task and per set. |
-| Tests do not count because AI wrote them | You write `tests/`, the task expectations, the verifier checks and the score weights. Optional: T0.5. | `tests/` holds 157 hand-written tests (78 in PR #4, 79 in PR #5). `tests/README.md` is the guide, and it lists what is still to write. The headers of the task files, `routes.toml` and `filing_rules.toml` mark them as AI drafts. AI also helped to write `harness/verifiers.py` · 👤 review them and own them · ⛔ T0.5 not done |
+| Tests do not count because AI wrote them | You write `tests/`, the task expectations, the verifier checks and the score weights. Optional: T0.5. | `tests/` holds 296 tests in 48 files (4 Oct 2026). `tests/README.md` is the guide, and it lists what is still to write. The headers of the task files, `routes.toml` and `filing_rules.toml` mark them as AI drafts. AI also helped to write `harness/verifiers.py` · 👤 review them and own them · ⛔ T0.5 not done |
 
 ### 6.6 Questions for staff
 
@@ -380,7 +382,7 @@ Each row has a date. The offline rows ran again on 27 Sept 2026 (26 Sept fixture
 | Hand-written tests (PR #4): `python -m unittest discover -s tests -v` | 2 Oct, and 3 Oct on the merged tree | **78 / 78 pass** (Python 3.14 and 3.11) |
 | Hand-written tests (PR #4 + PR #5): `python -m unittest discover -s tests -v` | 3 Oct | **157 / 157 pass**, 3 runs in a row (Python 3.14). The machine that ran them did not have 3.11. |
 | Offline with decision C: all 22 tasks ×5, rescore, calibration, routes, smoke (scripted model, Python 3.14) | 4 Oct | **22 / 22 pass on every run** (110 run files), rescore **identical**, **377 / 377 caught** (30 kinds), routes **10 / 10**, smoke OK |
-| Hand-written tests with decision C: `python -m unittest discover -s tests` | 4 Oct | 157 run. All pass except the 4 `FollowOriginalTests`. These assert the old duplicate rule. They fail until the team deletes 2 of them and rewrites the other 2 by hand. |
+| Tests with decision C, after the new test files: `python -m unittest discover -s tests -v` | 4 Oct | **296 / 296 pass** in 48 files, 3 runs in a row (Python 3.14.4). `FollowOriginalTests` is now `PossibleCopyTests`, which asserts decision C. |
 | Calibration: the harness plants each of the 26 kinds of mistake that applies to a task. It plants them in 1 run that passes, for each of the 21 tasks. 25 kinds apply, because no task now expects an archive. | 27 Sept | **295 / 295 caught**, each on the exact check that it targets. Calibration exercised every expectation key (22 Sept: 265 / 265 on 19 tasks). |
 | Routes (`routes.toml`), **scripted model only** | 27 Sept | **10 / 10**. The scripted router is specific to these questions, so this result says nothing yet about the real model. |
 | `python -m harness smoke` | 27 Sept | `OK   run + score`, `OK   rescore identical`, `OK   calibration catches faults` |
@@ -395,8 +397,7 @@ Each row has a date. The offline rows ran again on 27 Sept 2026 (26 Sept fixture
 
 - Runs with the **real model** (`--model anthropic`) need your API key. This includes `python -m harness routes --model anthropic`.
 - The **single live write run** (TI2L) needs the approval of the repo owner and a date that the team chooses. See [The live write run](live-run.md#11-the-live-write-run).
-- **More hand-written tests** (Phase 5). 157 tests exist (78 in PR #4, 79 in PR #5). They include the pre-flight, scope and same-name rules, the find-drawing and score scenarios, the leak guard and the harness runner. Tests cover 37 of the 94 planned scenarios fully. `tests/README.md` lists the tests that are still to write for the STRIDE fixes, decision C and the other scenarios.
-  The 4 `FollowOriginalTests` assert the duplicate rule from before decision C. They fail until the team deletes 2 of them and rewrites the other 2 by hand.
+- **More hand-written tests** (Phase 5). 296 tests exist in 48 files (4 Oct 2026). They include the pre-flight, scope and same-name rules, and the find-drawing and score scenarios. They also include the leak guard, the harness runner, decision C and the STRIDE fixes. `tests/README.md` lists the open scenarios and STRIDE checks.
 - **The team's review of the STRIDE fixes** (AI-assisted), and then a commit on a branch. See [Security review (STRIDE)](safety.md#security-review-stride).
 - **A live, read-only `python -m harness preflight`** with PR #4's stricter checks, a long time before the write date.
 
@@ -418,7 +419,7 @@ For each file in the table below, do these steps yourselves:
 | `harness/tasks/*.toml` | what counts as a correct answer for each task. This includes the decisions in the headers. Confirmed: decision A (the live write run writes to and escalates only the 9 allow-listed originals) and decision B (the same-name rule). Also confirmed: the agent refuses a shared filename, and never picks one. Also, a second tidy pass must do nothing. New on 4 Oct: decision C (the duplicate rule), with task TI7 as a draft. |
 | `harness/tasks/routes.toml` | the route questions, and the skill that each question must reach |
 | `harness/verifiers.py` | the checks that decide pass or fail (plan tasks T4.3 and T4.4 mark these as yours) |
-| `tests/` | **your hand-written tests**: 157 so far (78 in PR #4, 79 in PR #5). There is also `helpers.py`, a shared stub module with no tests of its own. `tests/README.md` is the guide, and it lists what is still to write. AI helped to update it on 3 Oct, and it holds no test code. |
+| `tests/` | **your hand-written tests**: 296 in 48 files so far (4 Oct 2026). There is also `helpers.py`, a shared stub module with no tests of its own. `tests/README.md` is the guide, and it lists what is still to write. AI helped to update it on 4 Oct, and it holds no test code. |
 | the *Answer* column in [6.6 Questions for staff](#66-questions-for-staff) | the staff's answers to the 8 open questions |
 | `docs/security/stride-review.md`, and the code with the mark `# STRIDE <id>`. This includes the new `agent/textsafe.py`, `scripts/secret_scan.py` and `.githooks/pre-commit`. | the STRIDE review and its fixes. Decide if each fix, and each risk that is still open, is correct for the team. Review them before you rely on them. |
 

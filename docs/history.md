@@ -313,6 +313,8 @@ An offline check on 4 Oct 2026 examined the change. The check used the scripted 
 
 When the code for duplicates is off, TI7 fails on 8 checks. Nothing used the live platform.
 
+**Later on 4 Oct 2026:** a commit deleted 2 of the `FollowOriginalTests` and changed the other 2 into `PossibleCopyTests`. It also added 28 test files. Now `python -m unittest discover -s tests` runs 296 tests, and all of them pass.
+
 ---
 
 ## Old README sections that the new README replaces

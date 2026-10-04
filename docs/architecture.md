@@ -404,7 +404,7 @@ harness/
   verifiers.py score.py calibrate.py __main__.py
   tasks/                  TEAM-OWNED task files (22) + routes.toml
   fixtures/               captured data (sanitised): keystone/2026-09-22, keystone/2026-09-26, suryodaya/2026-09-22
-tests/                    YOUR hand-written tests (157: PR #4 + PR #5) + helpers.py + README.md (the guide)
+tests/                    YOUR hand-written tests (296 in 48 files) + helpers.py + README.md (the guide)
 scripts/secret_scan.py    read-only secret scan (block D in 7.2); prints file and line, never the text
 .githooks/pre-commit      runs that scan on staged lines (enable: git config core.hooksPath .githooks)
 docs/                     gap_report.md (the one-page gap report, updated 27 Sept; the Step 3 submission is tag step3-submitted)
