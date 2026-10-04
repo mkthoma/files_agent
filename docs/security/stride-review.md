@@ -1,5 +1,7 @@
 # STRIDE security review: files_agent
 
+README line and section references in this review are to the README before the split into `docs/`; [docs/history.md](../history.md#old-to-new-section-map) maps each old section to its new file.
+
 > **This review and the fixes it describes need the team's review** before you rely on them (see [section 11](#11-what-the-team-must-do)).
 
 **Repo:** `files_agent`. Reviewed at `main` `85d0e5d`; the fixes were then merged with PR #4 (Tanmay's hand-written tests and stricter pre-flight checks, 2 Oct 2026).

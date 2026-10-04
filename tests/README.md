@@ -188,7 +188,7 @@ Both gaps are still open. On 4 Oct 2026, all 296 tests passed with each change b
 
 ### Decision C scenarios that are still open
 
-Decision C (4 Oct 2026) changed the duplicate rule. The agent never writes to a file because the file looks like a copy of another file. A possible copy has the same recorded hash, size and name as another file, or the same name and size. It stays where it is, and the agent does not archive it. The agent makes one escalation that names the other file's id, its folder and its destination in this run. The rule is in [triage step 3](../README.md#triage_folder-evidence-scored-filing).
+Decision C (4 Oct 2026) changed the duplicate rule. The agent never writes to a file because the file looks like a copy of another file. A possible copy has the same recorded hash, size and name as another file, or the same name and size. It stays where it is, and the agent does not archive it. The agent makes one escalation that names the other file's id, its folder and its destination in this run. The rule is in [triage step 3](../docs/architecture.md#triage_folder-evidence-scored-filing).
 
 These scenarios replace FOLLOW-1 and FOLLOW-2. Tests now cover these scenarios:
 
