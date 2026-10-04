@@ -1,6 +1,6 @@
 # tests/ — hand-written by Team 20 (Phase 5)
 
-> **This guide** (not the test files) was last updated on 3 Oct 2026. Every
+> **This guide** (not the test files) was last updated on 4 Oct 2026, for decision C. Every
 > `test_*.py` file in this folder is **hand-written by the team** and must stay that way: the brief says
 > *"a test written by Claude or Codex scores zero"*, and each hand-written test is worth 10 points. Write
 > and commit new tests yourselves; your commit history is the evidence.
@@ -17,6 +17,10 @@ The tests are offline: they use the fake server built from the captured fixture,
 never call the live platform, the model or the network. On 3 Oct 2026: `Ran 157 tests … OK`, three runs
 in a row, under Python 3.14 (3.11 was not installed on the machine that ran them). The 78 tests of
 PR #4 were also run under 3.11, both on PR #4 alone and on PR #4 merged with the STRIDE fixes.
+
+**Decision C (4 Oct 2026)** changed the duplicate rule, so 4 tests now fail, as expected: the
+`FollowOriginalTests` in `test_escalate.py` assert the old rule. Every other test passes. See
+[Decision C scenarios](#decision-c-scenarios-12-not-covered-yet) for what to delete, rewrite and add.
 
 Whether `pytest` is allowed is open (staff question Q3), so the tests use `unittest`.
 
@@ -43,13 +47,13 @@ Whether `pytest` is allowed is open (staff question Q3), so the tests use `unitt
 ### Written in PR #5 (Mathew Kenny Thomas, 3 Oct 2026)
 
 These take the scenario ids from the lists below. Ids marked **(part)** are only partly covered: the
-residue stays in [Unit scenarios only partly covered](#unit-scenarios-only-partly-covered-37).
+residue stays in [Unit scenarios only partly covered](#unit-scenarios-only-partly-covered-35).
 
 | Scenario / plan task | File | Tests | What they check |
 |---|---|---|---|
 | FD-1 **(part)**, FD-2 – FD-11 find drawing (T2.3) | `test_find_drawing.py` | 14 | J-BRKT-04 resolves to RevC with RevB superseded, KJ-BRKT-04 listed as a look-alike and no writes; a lower-case code finds it too; an unknown code and two parts sharing a code are refused; four spellings of `Rev B`; a tag must match whole; a drawing in Superseded counts as superseded; two live revisions, swapped archive flags, mixed `Rev1`/`RevC` and a superseded newest each name no current drawing |
 | SCORE-1 – SCORE-3, SCORE-5 – SCORE-9, SCORE-4 **(part)** evidence scoring (T5.2) | `test_triage_scoring.py` | 18 | the pure `_score` (a description plus a sender clue scores 0; disagreeing filename and linked record are a conflict naming both folders; score 2 escalates and exactly 3 move); the agent's own filed files are not evidence, people's are; all 18 Incoming items (5 moves, 13 held back, no writes); the planted W-9 conflict stays and escalates; a filed file keeps its description with the note appended; an archived file is left alone |
-| SAME-1, SAME-2, SCOPE-1 – SCOPE-3, IDEM-1, FOLLOW-1 **(part)**, FOLLOW-2 **(part)** (T5.8, decisions A and B) | `test_escalate.py` | 13 | the same-name ranking and a tie; the 880-byte copies escalate with basis "same filename in the destination" and point at their originals; a trusted copy is archived by its filed original with a pointer; the live cap updates only the 5 originals, escalates 4 and records the 9 copies out of scope; plan mode creates nothing; a second tidy writes nothing and all 13 escalations are `already_escalated` with pass 1's ids |
+| SAME-1, SAME-2, SCOPE-1 – SCOPE-3, IDEM-1, and the old FOLLOW-1 and FOLLOW-2 (T5.8, decisions A and B) | `test_escalate.py` | 13 | the same-name ranking and a tie; the 880-byte copies escalate with basis "same filename in the destination" and point at their originals; a trusted copy is archived by its filed original with a pointer (`FollowOriginalTests`, 4 tests: the rule before decision C, so they fail now; see [Decision C scenarios](#decision-c-scenarios-12-not-covered-yet)); the live cap updates only the 5 originals, escalates 4 and records the 9 copies out of scope; plan mode creates nothing; a second tidy writes nothing and all 13 escalations are `already_escalated` with pass 1's ids |
 | HARNESS-1, HARNESS-3 – HARNESS-6, HARNESS-8, HARNESS-9 †, HARNESS-2 **(part)**, HARNESS-7 **(part)** (T4.1, T4.2, T4.6, T4.8, T4.9) | `test_runner.py` | 13 | two `live_write` tasks refused and only TI2L `live_write`; four live misuses of `planned_runs` refused, the last on the shell-only `AS_ALLOW_WRITES`; 5, 2 and 1 runs planned; pre-flight's 9 warnings, a same-name row and a copy that has left Incoming; a failed set-up, a crash, a missing and a half-written run file each count as one failed run, with `score`/`rescore` surviving; calibration catches 18 of 18 on a D1 run |
 | PRIV-1 – PRIV-3, PRIV-4 † **(part)** (T2.11) | `test_privacy.py` | 7 | an e-sign row becomes a placeholder keeping id, size and folder, and the row handed in is unchanged; open rows come back untouched; a planted canary reaches `ctx.files()` but `list_files` shows 30 and withholds 84; the model's own `FileAttachment.get`, `FileAttachment.list` and `DriveAccessLog.list` never show its title |
 | LOOP-2, ANSWER-1 †, LOOP-1 **(part)** (T3.0, T3.2) | `test_loop.py` | 7 | two `tool_use` blocks in one reply run both skills in one turn (RevC, 5 planned moves, nothing written in plan mode); exactly 8 skills and 8 read-only MCP tools are offered, no write tool, and a tool whose read-only hint is cleared is dropped; `compose` flags an unseen id in any letter case, counts the record trail and keeps look-alikes out of it |
@@ -86,6 +90,38 @@ were tried separately.
 | Pre-flight: a fixture row related to one of the 9 (for example a mill cert outside Incoming) that is renamed to an unrelated name is still a problem | in `_outside_incoming` (`harness/preflight.py`), judge only the live row: drop `or (base is not None and related(base))` |
 | An allow-listed file that has left Incoming is neither writable nor accepted by pre-flight (`allow-listed file(s) missing from Incoming`) | in `_allowlist` (`agent/runtime.py`), return the 9 ids without `ids &`; or drop the `missing` check in `assess` (`harness/preflight.py`) |
 
+### Decision C scenarios (12, not covered yet)
+
+Decision C (4 Oct 2026) replaced the old duplicate rule: the agent never writes to a file because it
+looks like a copy of another. A possible copy (same recorded hash + size + name, or name + size) stays
+where it is, not archived, with one escalation naming the other file's id, folder and in-run destination.
+The rule is stated in the main README ([triage step 3](../README.md#triage_folder-evidence-scored-filing)).
+These scenarios replace FOLLOW-1 and FOLLOW-2 in the team's scenario list.
+
+**First, the 4 `FollowOriginalTests` in `test_escalate.py` (PR #5) assert the old rule, so they fail.**
+Change them by hand:
+- **delete** `test_duplicate_follows_original` and `test_duplicate_waits_for_original`: there is no
+  follow step any more;
+- **rewrite** `test_trusted_copy_archived` as DUPC-2 and `test_escalation_to_delete_copy` as DUPC-6.
+
+Ids 7a…41, 7b…41, 7c…42 and 7d…42 are the explicit `id`s used in `harness/tasks/TI7.toml`: an
+`extra_files` entry may now carry its own `id`, so two planted files can share a name.
+
+| Id | Scenario | Assert | Sabotage that should turn it red |
+|---|---|---|---|
+| DUPC-1 | `WEEK40_FILES`, but give the copy a sender too; `build_plan` on Incoming | the copy is `escalate`, with no destination, basis "recorded hash + size + name", `original_id` a9095b10 and a `recorded_duplicate` clue; its `missing[0]` holds a9095b10, "in Incoming", "which this run plans to file in HR" and "recorded metadata any seat can edit"; the original is a move to HR; no item is a `duplicate` | in `_plan_item` (`agent/skills/triage.py`), `return item` instead of `_hold_as_copy_match(...)` |
+| DUPC-2 | the same files, apply mode | the copy is still in Incoming, not archived, with no description, and no update names it; no `archive_duplicate` record; exactly one escalation with subject `[files-agent] 8cc54863-… timesheet_week40 (1).xlsx`, whose reason holds "file it, keep both, or have one removed" and not "delete rights"; the original is in HR | as DUPC-1 |
+| DUPC-3 | two `timesheet_week41.xlsx` extras, ids 7a…41 and 7b…41, both with a sender, one hash and size; apply | HR holds exactly one row with that name (7a); 7b is in Incoming, not archived, and escalated once | `return item` (both tie, so 7a is not filed either) |
+| DUPC-4 | a decoy `timesheet_week44.xlsx` in Superseded with no sender, and `timesheet_week44 (1).xlsx` in Incoming **with** a sender (without one the sabotage shows nothing) | the Incoming file stays in Incoming, not archived, never updated; the decoy is unchanged; the plan text names the decoy's id and "in Superseded"; one escalation | `return item` (the file is filed to HR) |
+| DUPC-5 | 7c…42 already in HR and a same-name 7d…42, with a sender, in Incoming; apply | 7d stays in Incoming, not archived; HR holds one row with that name; the escalation names 7c, "in HR" and the basis, and does not say "plans to file". Where the file ends up is not enough: decision B also holds it back when duplicate handling is off, so the text checks are what catch it | in `_ask_to_compare`, use the copy's folder instead of the other file's |
+| DUPC-6 | a second apply tidy after DUPC-2 | no new writes; the copy's record is `already_escalated` / `skipped` | in `agent/skills/escalate.py`, `if subject in existing:` → `if False:` |
+| DUPC-7 | (i) a live-capped apply tidy; (ii) the same with c0c8b9c0 and 3dd05bfb deleted from the fake server | (i) 82f83d94's reason holds 732439a0, "in Incoming", "which this run plans to file in Purchasing", "not the file bytes" and "keep both"; (ii) the basis is "recorded hash + size + name", and 82f83d94 stays in Incoming, not archived, escalated once | (i) put back the "suspected duplicate" text from before decision C; (ii) `return item` (the file is filed to Purchasing) |
+| GUARD-ARCH | apply mode: `guard.update_file(1ee27946…, {"is_archived": True})` | raises `WriteBlocked` naming `is_archived`; nothing is sent | add `is_archived` back to `UPDATE_FIELDS` (`agent/guards.py`) |
+| RESTORE-ARCH | `snapshot.check_inputs` with a journal update entry whose changes are `{"is_archived": True}` | raises `RestoreRefused` saying the entry "holds is_archived" (written before decision C) and "nothing restored"; no call is made | `RESTORE_FIELDS = frozenset(WRITABLE_FIELDS)` (`agent/snapshot.py`) |
+| FAKE-ID | `FakeServer.from_fixture` with planted extras | two extras with one name and no `id` raise `ValueError` naming the file; an `id` equal to a fixture row's id raises too; two distinct ids give two rows | delete the id-in-table check in `_add_file` (`harness/fake_server.py`) |
+| TASK-ID | `load_task` on a temporary TOML (`test_tasks_loader.py`) | two same-name extras, or one explicit `id` twice, raise `ValueError` starting with the task file's name and naming both files; distinct ids load | drop `_extra_file_problems` from `load_task` (`harness/tasks.py`) |
+| VERIFY-UNCHANGED | `expect = {"unchanged": [F1]}` with F1 missing from the before-state (`test_verifiers.py`) | the `unchanged` check fails with "not in the before-state"; with F1 present and unchanged, it passes | delete the new before-state check in `_state_checks` (`harness/verifiers.py`) |
+
 ### Unit scenarios not covered yet (10)
 
 The ids are labels from the team's unit-test scenario list, kept with the project docs outside this repo.
@@ -104,7 +140,7 @@ The ids are labels from the team's unit-test scenario list, kept with the projec
 | REC-1 | `DecisionRecord` rejects an unknown status or confidence, and survives a round trip to a dict |
 | VERIFY-1 | the `writes` check fails when a read-only task made a write call |
 
-### Unit scenarios only partly covered (37)
+### Unit scenarios only partly covered (35)
 
 PR #4's and PR #5's tests cover part of each; the second column says what is still missing. Where PR #5
 took an id on, the row says what is left of it.
@@ -117,8 +153,6 @@ took an id on, the row says what is left of it.
 | DUP-1 | separate cases for a name-only difference (same size) and a size-only difference (same name); a row with no hash; the exact set of untrusted hashes |
 | DUP-4 | exactly 2 "not byte-verified"; the "14 content hash value(s) are shared" line; an apply run writes nothing; the Quality folder has no duplicates |
 | SCORE-4 † | that a `[Files Agent` note on a row **another** seat updated still counts as evidence: the test plants the note and `updated_by` together, so code reading the note alone still passes. Also the `own_ids` (this-run journal) branch of `agent_filed`, `MIN_AGREEING_ROWS` (both tests use 2 agreeing rows), and a real second tidy pass — the two tests call `similar_file_folder` directly with hand-made rows |
-| FOLLOW-1 | an original planned as a move but outside the write allow-list (so not filed in this run) still leaves the duplicate waiting; an original that is not in this plan at all (`twin is None`); and a filed original whose destination is the folder being tidied |
-| FOLLOW-2 | that the ask is about **deletion**: only the escalation's subject line is asserted, never the reason text ("needs someone with delete rights to remove it") or its reason code |
 | ACCESS-2 | "Delete <id>." in apply mode: nothing written, "can't delete" and `_permissions.delete = False` in the answer; an upper-case id finds the same file |
 | ACCESS-3 | the "duplicate of <id>" wording resolves to nothing too |
 | PRIV-4 † | a `tools.search` query that actually matches a tool, so the name-only projection is exercised ("offer letter" and "Canary" match no tool on the fixture, so nothing is stripped); and an access-log row whose own free text carries the title, or a row with `file_id` null, so I5's dropping of `details` is asserted |
@@ -175,7 +209,7 @@ its last position, but not a model text that fakes a trail header of its own, no
 | E2 | `update_file` with an `id` or `tags` key in `changes` raises `WriteBlocked` ("field not allowed") and sends no update | add `"tags"` to `UPDATE_FIELDS`, or delete the `extra` check |
 | E3 | `McpClient.call` on a tool that is neither one of the 3 write tools nor marked read-only raises `McpError` (`write_tool_refused`) and sends nothing | delete that check at the top of `McpClient.call` |
 | T4 | `folder_named` returns nothing when two live folders share a name (`HR` and ` hr`), so nothing is moved there; pre-flight reports `2 folders are named 'hr'` | return the first match |
-| T6 | `check_inputs` (`agent/snapshot.py`) refuses a snapshot with an unknown field, a wrong type or an outside id, with no call made; restore never writes a field other than the agent's 3; `harness restore` without `writes-N.json` is refused unless `--no-journal` | skip the `RESTORE_FIELDS` check in `plan_restore` |
+| T6 | `check_inputs` (`agent/snapshot.py`) refuses a snapshot with an unknown field, a wrong type or an outside id, with no call made; restore never writes a field other than the agent's 2 (`folder_id`, `description`), and a journal entry with `is_archived` is refused (RESTORE-ARCH above); `harness restore` without `writes-N.json` is refused unless `--no-journal` | skip the `RESTORE_FIELDS` check in `plan_restore` |
 | T9 | a description another team edited between the snapshot and our write goes back to their text (our note removed) and is listed in `kept_foreign_edits` | restore the snapshot value instead of the text our note was appended to |
 | T11 | a field we did not send that changes inside our write window is returned as `concurrent_change` and named in the answer | drop the `concurrent_change` comparison in `update_file` |
 | T7 | one planted row of a kind does not decide a folder (`MIN_AGREEING_ROWS`); a `[Files Agent` note on a row another seat updated does not count as ours | set `MIN_AGREEING_ROWS = 1`, or make `agent_filed` check only the note |
