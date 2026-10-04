@@ -1705,7 +1705,7 @@ Run offline on 3 Oct 2026 with `PYTHONIOENCODING=utf-8`: first on the fixes alon
 | Secret scan | `python scripts/secret_scan.py` and `--history` | no secrets found (both) |
 | Compile | `python -m compileall -q agent harness scripts` | OK |
 
-**Re-checked on 4 Oct 2026 with decision C** (the duplicate rule; README section 15, Round 7), Python 3.14: all 22 tasks ×5 pass on every run, calibration 377 of 377, rescore IDENTICAL, routes 10 of 10, smoke OK, secret scan and compile clean. `python -m unittest discover -s tests` runs 157 tests; only the 4 `FollowOriginalTests` fail, because they assert the old duplicate rule.
+**Re-checked on 4 Oct 2026 with decision C** (the duplicate rule; README section 15, Round 7), Python 3.14: all 22 tasks ×5 pass on every run, calibration 377 of 377, rescore IDENTICAL, routes 10 of 10, smoke OK, secret scan and compile clean. `python -m unittest discover -s tests` ran 157 tests then; only the 4 `FollowOriginalTests` failed, because they asserted the old duplicate rule. **Later on 4 Oct**, `FollowOriginalTests` became `PossibleCopyTests` and 28 test files were added, many of them for the fixes in this review: the suite now runs 296 tests, and all pass. `tests/README.md` lists the sabotages that make these tests fail.
 
 Every threat's proof of concept was re-run against the final code (70 runs), and again on the merged tree.
 - The harmful behaviour is gone for every fixed threat.
