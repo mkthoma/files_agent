@@ -1748,7 +1748,7 @@ Every threat's proof of concept was re-run against the final code (70 runs), and
 
 **Decisions and requests**
 
-8. Decide whether to add a CI job that runs `scripts/secret_scan.py --history` on every push (I11).
+8. Done on 8 Oct 2026: `.github/workflows/ci.yml` runs `scripts/secret_scan.py --history` and gitleaks on every push to `main` and on every pull request (I11).
 9. Send the platform request for compare-and-set (T11). Staff question Q7 (`actor_kind` / `actor_user_id`) is still open, so the fix for R3 deliberately does not send `actor_user_id`.
 10. Anyone who ran the old README 7.2 login or "block D" with a real secret should delete those lines from their shell history (I3):
     - PowerShell: `%APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt`;

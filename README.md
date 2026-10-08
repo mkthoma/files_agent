@@ -151,7 +151,7 @@ The code enforces the rules below, because other teams also use Keystone. The nu
 - **On live Keystone, the agent writes only to the 9 allow-listed Incoming files.** It does not write to or escalate any other file. Offline, the allow-list is all of Incoming, so step 6 also plans escalations for the 9 copies.
 - **3 write tools, no delete.** The write tools are `FileAttachment.update`, `AgentSession.create` and `AgentEscalation.create`. The agent changes only `folder_id` and `description` (it adds a note to the end). It never archives a file. If a file is possibly a copy, the agent escalates it and never writes to it (decision C).
 - **Pre-flight, snapshot, journal, restore.** A live write run stops if the platform is different from the fixture (the captured platform data in `harness/fixtures/`). The fixture must be less than 24 hours old. After the run, the harness restores the old values of only the fields that this seat changed.
-- **No secrets on disk.** Git ignores `.env` and `runs/`. The code removes secrets from the traces. The expected output of `python scripts/secret_scan.py` is `no secrets found`. To enable the pre-commit scan, run `git config core.hooksPath .githooks` once.
+- **No secrets on disk.** Git ignores `.env` and `runs/`. The code removes secrets from the traces. The expected output of `python scripts/secret_scan.py` is `no secrets found`. To enable the pre-commit scan, run `git config core.hooksPath .githooks` once. On GitHub, CI also scans the full git history with this script and with gitleaks.
 
 ---
 
@@ -167,6 +167,7 @@ The code enforces the rules below, because other teams also use Keystone. The nu
   2. Run the tests again.
   3. Update the numbers that changed.
 - The harness tasks, `python -m harness calibrate` and the checks in [docs/checking.md](docs/checking.md) are **not** part of these tests.
+- **CI.** `.github/workflows/ci.yml` runs on every push to `main` and on every pull request. It runs the tests and the offline harness gates (`routes`, `smoke`, `run all`, `rescore` and `calibrate`) on Ubuntu and Windows, with Python 3.11 and 3.14. It also scans the full git history with `scripts/secret_scan.py --history` and with gitleaks. CI uses no secrets and no live platform. When you add or remove a task, change `EXPECTED_TASKS` in `ci.yml`.
 
 ---
 
@@ -235,6 +236,8 @@ harness/          fake server, runner, verifiers, scoring, calibration, pre-flig
 tests/            hand-written unittest tests, helpers.py and the tests guide
 scripts/          secret_scan.py (prints file and line, never the text)
 .githooks/        pre-commit: runs that scan on staged lines (git config core.hooksPath .githooks)
+.github/          workflows/ci.yml: tests, harness gates and secret scans on every push to main and every PR
+.gitleaks.toml    gitleaks config: the default rules, plus 3 reviewed false positives
 docs/             gap report, STRIDE review and the guides above
 runs/             run output (git-ignored)
 ```
