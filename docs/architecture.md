@@ -407,6 +407,8 @@ harness/
 tests/                    YOUR hand-written tests (296 in 48 files) + helpers.py + README.md (the guide)
 scripts/secret_scan.py    read-only secret scan (block D in 7.2); prints file and line, never the text
 .githooks/pre-commit      runs that scan on staged lines (enable: git config core.hooksPath .githooks)
+.github/workflows/ci.yml  CI: tests, harness gates and secret scans on every push to main and every PR
+.gitleaks.toml            gitleaks config: the default rules, plus 3 reviewed false positives
 docs/                     gap_report.md (the one-page gap report, updated 27 Sept; the Step 3 submission is tag step3-submitted)
 docs/security/stride-review.md  the STRIDE security review and its fixes (AI-assisted; see 12)
 runs/                     run output (git-ignored)

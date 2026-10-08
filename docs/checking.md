@@ -120,7 +120,7 @@ The correct result is `no secrets found`. The script reads only local files: all
 ```powershell
 python scripts/secret_scan.py
 ```
-The same command works in Git Bash. `python scripts/secret_scan.py --history` does the same scan on all lines that any commit on any branch added.
+The same command works in Git Bash. `python scripts/secret_scan.py --history` does the same scan on all lines that any commit on any branch added. On GitHub, CI runs `--history` and gitleaks on every push to `main` and on every pull request (`.github/workflows/ci.yml`).
 
 **Offline equivalents (O1–O8).** These commands read the newest fixture. The harness captured it from the live platform on 26 Sept 2026, at 05:18 UTC. It captured the 22 Sept fixture at 08:41 UTC. These commands give the ground truth for **offline** runs.
 
