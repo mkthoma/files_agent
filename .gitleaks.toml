@@ -1,7 +1,8 @@
 # Gitleaks config for the T0.2 secret scan: `gitleaks git .` must exit 0.
-# The default rules stay on; this file only allowlists the 5 reviewed false
-# positives from the 7 Oct 2026 scan (40 commits, plus a `gitleaks dir runs/`
-# scan: no leaks). Real secrets live only in the git-ignored .env.
+# The default rules stay on. This file only allowlists the 3 values behind
+# the 5 reviewed false positives from the 7 Oct 2026 scan (40 commits, plus a
+# `gitleaks dir runs/` scan: no leaks). It skips no file or path, so gitleaks
+# still scans the fixtures. Real secrets live only in the git-ignored .env.
 
 [extend]
 useDefault = true
@@ -11,8 +12,5 @@ description = "Reviewed false positives, 7 Oct 2026"
 regexes = [
   '''dummy-seat-pass-4471''',          # deliberate dummy in tests/test_secrets.py
   '''tok-abcdef123456''',              # deliberate dummy in tests/test_redact.py
-  '''scheduling/birthdays''',          # platform `script_key` field captured in the fixtures
-]
-paths = [
-  '''harness/fixtures/.*/fixture\.json''',  # captured platform data, sanitised before saving
+  '''scheduling/birthdays''',          # platform `script_key` value in the 3 fixtures
 ]
