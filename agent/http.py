@@ -14,6 +14,7 @@ import http.client
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -39,9 +40,22 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
+def _is_internal_http(base_url: str) -> bool:
+    """True for plain http to a host public DNS cannot reach: localhost, 127.x/::1, or a
+    single-label name with no dot (a container network name, e.g. sandbox-keystone)."""
+    parts = urllib.parse.urlsplit(base_url)
+    host = (parts.hostname or "").lower()
+    if parts.scheme != "http" or not host:
+        return False
+    return host == "localhost" or host.startswith("127.") or host == "::1" or "." not in host
+
+
 class HttpTransport:
     def __init__(self, base_url: str, timeout: float = 60.0, retries: int = 3, max_seconds: float = 180.0) -> None:
-        if not base_url.lower().startswith("https://"):  # STRIDE S5: the bearer token never travels in clear text
+        # STRIDE S5: the bearer token never travels in clear text ACROSS A NETWORK. Plain http is
+        # allowed only for localhost and for a dotless single-label host such as the official
+        # runner's 'http://sandbox-keystone:8000' (Release 8.1), which public DNS cannot route.
+        if not base_url.lower().startswith("https://") and not _is_internal_http(base_url):
             raise ValueError(f"base_url must start with https:// (got {base_url!r})")
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
