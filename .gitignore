@@ -27,3 +27,6 @@ Thumbs.db
 # Local tool settings that can hold secrets (STRIDE I3): an AI assistant's saved allow rules, direnv
 .claude/settings.local.json
 .envrc
+
+# Official server run output (regenerated every run)
+results.json

@@ -81,7 +81,7 @@ def load_env(path: Path = ENV_FILE) -> dict[str, str]:
                 continue
             key, _, value = line.partition("=")
             values[key.strip().removeprefix("export ").strip()] = _env_value(value)
-    merged = {**values, **{k: v for k, v in os.environ.items() if k.startswith(("AS_", "ANTHROPIC_"))}}
+    merged = {**values, **{k: v for k, v in os.environ.items() if k.startswith(("AS_", "ANTHROPIC_", "AGENTSWITCH_", "OPENAI_"))}}
     # STRIDE I4: a password or key stays masked in any traceback that prints this dict
     return {k: Secret(v) if is_sensitive_key(k) else v for k, v in merged.items()}
 
@@ -129,9 +129,11 @@ class Settings:
     price_out_per_mtok: float
     allow_writes: bool
     actor_kind: str
+    # The official server run (Release 8.1) injects a ready bearer token instead of a password.
+    token: str = field(repr=False, default="")
 
     def secrets(self) -> list[str]:
-        return [s for s in (self.password, self.anthropic_api_key) if s]
+        return [s for s in (self.password, self.anthropic_api_key, self.token) if s]
 
 
 def get_settings(business: str = "keystone", env: dict[str, str] | None = None) -> Settings:
@@ -144,7 +146,8 @@ def get_settings(business: str = "keystone", env: dict[str, str] | None = None) 
         raise ValueError("AS_ACTOR_KIND must be 'user', 'system' or blank ('agent' is not allowed by the platform)")
     return Settings(
         business=business,
-        base_url=INSTANCES[business],
+        # The official server run points at a fresh copy of the instance; its URL wins over the known one.
+        base_url=(env.get("AGENTSWITCH_BASE_URL") or INSTANCES[business]).rstrip("/"),
         email=env.get("AS_EMAIL", "team20@theschoolofai.in"),
         password=Secret(env.get(f"AS_{business.upper()}_PASSWORD", "")),
         anthropic_api_key=Secret(env.get("ANTHROPIC_API_KEY", "")),
@@ -157,4 +160,5 @@ def get_settings(business: str = "keystone", env: dict[str, str] | None = None) 
         # The second write switch is read from the live shell only, never from .env, so it can't stay on by accident.
         allow_writes=(os.environ if explicit_env is None else explicit_env).get("AS_ALLOW_WRITES", "0") == "1",
         actor_kind=actor_kind,
+        token=Secret(env.get("AGENTSWITCH_TOKEN", "")),
     )

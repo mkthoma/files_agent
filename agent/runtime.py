@@ -5,14 +5,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agent.auth import Session
+from agent.auth import Session, TokenSession
 from agent.budget import Budget
 from agent.catalog import Catalog
 from agent.config import KEYSTONE_INCOMING_ALLOWLIST, WRITE_BUSINESS, Settings, get_settings
 from agent.guards import WriteGuard
 from agent.http import HttpTransport
 from agent.mcp_client import McpClient
-from agent.model import AnthropicModel, ScriptedModel
+from agent.model import AnthropicModel, OpenAICompatModel, ScriptedModel
 from agent.privacy import sanitise_payload
 from agent.redact import Redactor
 from agent.safe_reads import folder_named, folders_by_id, where
@@ -52,7 +52,22 @@ def make_transport(target: str, settings: Settings, fixture_dir: Path | None = N
 
 
 def make_model(kind: str, settings: Settings) -> Any:
-    return ScriptedModel() if kind == "scripted" else AnthropicModel(settings.anthropic_api_key, settings.model)
+    if kind == "scripted":
+        return ScriptedModel()
+    if kind == "openai":  # the official server run's model: OpenAI-compatible, from OPENAI_* env values
+        return OpenAICompatModel.from_env()
+    return AnthropicModel(settings.anthropic_api_key, settings.model)
+
+
+def make_session(transport: Any, settings: Settings, trace: Trace, target: str) -> Session:
+    """A password login, or (official server run) a session on the provided bearer token."""
+    if settings.token:
+        return TokenSession(transport, settings.email, settings.token, trace)
+    # STRIDE I4: no plain `password` local, so a traceback printed with locals can't show it
+    session = Session(transport, settings.email,
+                      settings.password or ("fake-password" if target == "fake" else ""), trace)
+    session.login()
+    return session
 
 
 def check_write_permission(target: str, mode: str, settings: Settings) -> None:
@@ -81,10 +96,7 @@ def build(business: str, target: str, mode: str, trace_path: Path | None, *, tra
     trace = trace or Trace(trace_path, Redactor(settings.secrets()))
     transport = transport or make_transport(target, settings)
     check_transport(target, transport)
-    # STRIDE I4: no plain `password` local, so a traceback printed with locals can't show it
-    session = Session(transport, settings.email,
-                      settings.password or ("fake-password" if target == "fake" else ""), trace)
-    session.login()
+    session = make_session(transport, settings, trace, target)
     budget = Budget(settings.max_turns, settings.max_mcp_calls, settings.max_usd,
                     settings.price_in_per_mtok, settings.price_out_per_mtok)
     admin = McpClient(session, trace)

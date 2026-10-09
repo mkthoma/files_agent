@@ -1,7 +1,10 @@
 """Model clients.
 
-- AnthropicModel: the real model, via the Messages API over plain HTTPS (no SDK, no framework).
-- ScriptedModel:  a deterministic stand-in for offline work and harness calibration. It routes a
+- AnthropicModel:   the real model, via the Messages API over plain HTTPS (no SDK, no framework).
+- OpenAICompatModel: the official server run's model (Release 8.1), via the OpenAI-compatible
+  chat-completions API over plain HTTPS. It translates between the loop's message format and
+  the OpenAI one, so `agent/loop.py` needs no change.
+- ScriptedModel:    a deterministic stand-in for offline work and harness calibration. It routes a
   question to one skill with simple rules and returns that skill's `answer_text`. It is NOT the
   graded agent; it exists so the harness can run without an API key.
 """
@@ -9,6 +12,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import os
 import re
 import time
 import urllib.error
@@ -66,6 +70,110 @@ class AnthropicModel:
 
     def _may_retry(self, attempt: int, deadline: float) -> bool:
         return attempt < self.retries and time.monotonic() + 2 ** (attempt + 1) < deadline
+
+
+class OpenAICompatModel:
+    """The platform-provided model of the official server run: OpenAI-compatible chat completions,
+    tool calls included, spoken over plain HTTPS (no SDK). The loop keeps its own message format;
+    this class translates each call in both directions."""
+
+    name = "openai"
+
+    def __init__(self, base_url: str, api_key: str, model: str, max_tokens: int = 2048,
+                 temperature: float | None = 0.0, retries: int = 3, max_seconds: float = 300.0) -> None:
+        if not base_url or not api_key:
+            raise ModelError("OPENAI_BASE_URL and OPENAI_API_KEY are not set (they come from the official runner)")
+        self.url = base_url.rstrip("/") + "/chat/completions"
+        self.api_key, self.model, self.max_tokens, self.temperature = Secret(api_key), model, max_tokens, temperature
+        self.retries, self.max_seconds = retries, max_seconds
+
+    @classmethod
+    def from_env(cls) -> "OpenAICompatModel":
+        env = os.environ
+        return cls(env.get("OPENAI_BASE_URL", ""), env.get("OPENAI_API_KEY", ""),
+                   env.get("OPENAI_MODEL", "agentswitch-default"))
+
+    def create(self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> dict[str, Any]:
+        body: dict[str, Any] = {"model": self.model, "max_tokens": self.max_tokens,
+                                "messages": _to_openai(system, messages)}
+        if tools:
+            body["tools"] = [{"type": "function", "function": {"name": t["name"], "description": t["description"],
+                                                               "parameters": t["input_schema"]}} for t in tools]
+        if self.temperature is not None:
+            body["temperature"] = self.temperature
+        headers = {"Authorization": "Bearer " + self.api_key, "content-type": "application/json"}
+        deadline = time.monotonic() + self.max_seconds
+        for attempt in range(self.retries + 1):
+            req = urllib.request.Request(self.url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
+            try:
+                timeout = max(0.1, min(SOCKET_TIMEOUT, deadline - time.monotonic()))
+                with NO_REDIRECT_OPENER.open(req, timeout=timeout) as resp:  # STRIDE S5: the key never follows a redirect
+                    return _from_openai(json.loads(read_capped(resp, deadline, "chat completions").decode("utf-8")))
+            except urllib.error.HTTPError as err:
+                detail = err.read(CHUNK_BYTES).decode("utf-8", "replace")[:300]
+                if err.code in (429, 500, 502, 503, 529) and self._may_retry(attempt, deadline):
+                    time.sleep(2 ** (attempt + 1))
+                    continue
+                raise ModelError(f"chat completions HTTP {err.code}: {detail}") from err
+            except (OSError, http.client.HTTPException) as err:
+                if self._may_retry(attempt, deadline):
+                    time.sleep(2 ** (attempt + 1))
+                    continue
+                raise ModelError(f"chat completions unreachable: {err}") from None  # STRIDE I4: frames hold the key
+            except TransportError as err:
+                raise ModelError(f"chat completions reply refused: {err}") from err
+        raise ModelError("chat completions failed after retries")
+
+    _may_retry = AnthropicModel._may_retry
+
+
+def _to_openai(system: str, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The loop's messages (Anthropic-style content blocks) as OpenAI chat messages."""
+    out: list[dict[str, Any]] = [{"role": "system", "content": system}]
+    for msg in messages:
+        content = msg["content"]
+        if isinstance(content, str):
+            out.append({"role": msg["role"], "content": content})
+            continue
+        if msg["role"] == "assistant":
+            text = "\n".join(b.get("text", "") for b in content if b.get("type") == "text")
+            calls = [{"id": b["id"], "type": "function",
+                      "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})}}
+                     for b in content if b.get("type") == "tool_use"]
+            entry: dict[str, Any] = {"role": "assistant", "content": text or None}
+            if calls:
+                entry["tool_calls"] = calls
+            out.append(entry)
+            continue
+        for block in content:  # a user turn of tool_result blocks: one OpenAI tool message per result
+            if block.get("type") == "tool_result":
+                prefix = "TOOL ERROR: " if block.get("is_error") else ""
+                out.append({"role": "tool", "tool_call_id": block["tool_use_id"], "content": prefix + str(block["content"])})
+    return out
+
+
+def _from_openai(resp: dict[str, Any]) -> dict[str, Any]:
+    """An OpenAI chat-completions reply as the Anthropic-style dict the loop expects."""
+    choices = resp.get("choices") or []
+    if not choices:
+        raise ModelError(f"chat completions reply has no choices: {json.dumps(resp)[:300]}")
+    msg = choices[0].get("message") or {}
+    content: list[dict[str, Any]] = []
+    if msg.get("content"):
+        content.append({"type": "text", "text": str(msg["content"])})
+    for call in msg.get("tool_calls") or []:
+        fn = call.get("function") or {}
+        try:
+            args = json.loads(fn.get("arguments") or "{}")
+        except ValueError:
+            args = fn.get("arguments")  # not JSON: the loop reports invalid_arguments back to the model
+        content.append({"type": "tool_use", "id": call.get("id") or f"call_{len(content)}",
+                        "name": fn.get("name") or "?", "input": args})
+    usage = resp.get("usage") or {}
+    has_tools = any(b["type"] == "tool_use" for b in content)
+    finish = choices[0].get("finish_reason") or "stop"
+    return {"content": content, "stop_reason": "tool_use" if has_tools else ("end_turn" if finish == "stop" else finish),
+            "usage": {"input_tokens": usage.get("prompt_tokens", 0), "output_tokens": usage.get("completion_tokens", 0)}}
 
 
 PART = r"([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)"
