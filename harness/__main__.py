@@ -172,6 +172,12 @@ def cmd_routes(args: argparse.Namespace) -> int:
     return 0 if ok == len(routes) else 1
 
 
+def cmd_official(args: argparse.Namespace) -> int:
+    """Release 8.1: the entry point the AgentSwitch runner calls (see agentswitch-harness.toml)."""
+    from harness.official import run_official
+    return run_official(args.dry_run, args.model)
+
+
 def cmd_preflight(args: argparse.Namespace) -> int:
     try:
         fixture = fixtures.load(args.business)
@@ -276,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     run = sub.add_parser("run")
     run.add_argument("tasks", nargs="+")
     run.add_argument("--target", default="fake", choices=["fake", "live"])
-    run.add_argument("--model", default="scripted", choices=["scripted", "anthropic"])
+    run.add_argument("--model", default="scripted", choices=["scripted", "anthropic", "openai"])
     run.add_argument("--repeat", type=int)
     run.add_argument("--set")
     run.add_argument("--live-apply", action="store_true")
@@ -286,6 +292,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("rescore").add_argument("set")
     sub.add_parser("smoke")
     sub.add_parser("preflight")
+    off = sub.add_parser("official", help="the AgentSwitch server run (Release 8.1); --dry-run rehearses offline")
+    off.add_argument("--dry-run", action="store_true")
+    off.add_argument("--model", default=None, choices=["scripted", "anthropic", "openai"])
     rs = sub.add_parser("restore")
     rs.add_argument("snapshot")
     rs.add_argument("--target", default="fake", choices=["fake", "live"])
@@ -297,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     handlers = {"list": cmd_list, "capture": cmd_capture, "run": cmd_run, "score": cmd_score, "rescore": cmd_rescore,
                 "calibrate": cmd_calibrate, "smoke": cmd_smoke, "preflight": cmd_preflight, "restore": cmd_restore,
-                "routes": cmd_routes}
+                "routes": cmd_routes, "official": cmd_official}
     try:
         return handlers[args.command](args)
     except WritesNotAllowed as err:

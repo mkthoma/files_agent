@@ -1,0 +1,13 @@
+# Release 8.1: the AgentSwitch runner reads this file, checks out the saved branch, runs
+# `install` (internet allowed), then `run` once per instance against a fresh copy of it
+# (no internet; writes thrown away), and reads `results`.
+#
+# This repo is standard-library-only Python, so install has nothing to fetch.
+# The entry point is documented in harness/official.py; rehearse it offline with
+# `python -m harness official --dry-run`.
+
+install = "python -c \"import sys; assert sys.version_info >= (3, 11), sys.version; print('stdlib only; nothing to install')\""
+run = "python -m harness official"
+results = "results.json"
+instances = ["keystone"]   # Seat 20's scenario data (Incoming, part J-BRKT-04) exists on keystone only
+timeout_minutes = 25

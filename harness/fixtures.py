@@ -19,10 +19,10 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from agent.auth import Session
 from agent.catalog import Catalog
 from agent.config import REPO_ROOT, get_settings
 from agent.http import HttpTransport
+from agent.runtime import make_session
 from agent.mcp_client import McpClient
 from agent.privacy import is_withheld, sanitise_file
 from agent.redact import Redactor
@@ -51,8 +51,7 @@ def _pick(row: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
 def capture(business: str, out_root: Path = FIXTURE_ROOT) -> Path:
     settings = get_settings(business)
     trace = Trace(None, Redactor(settings.secrets()))
-    session = Session(HttpTransport(settings.base_url), settings.email, settings.password, trace)
-    session.login()
+    session = make_session(HttpTransport(settings.base_url), settings, trace, "live")
     mcp = McpClient(session, trace)
     mcp.initialize()
     tools = mcp.list_tools()

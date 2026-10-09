@@ -10,6 +10,7 @@ This folder holds the guides that were sections of the old README. It also holds
 - [plan-and-status.md](plan-and-status.md): the old status lines, the old Tests section and the Step 4 plan. It also has the results so far and the files you own. Old README sections: front matter, Tests, 6, 10 and 12.
 - [checking.md](checking.md): how to check each part by hand. Old README sections: 7 to 7.5.
 - [live-run.md](live-run.md): the single live write run, before, during and after. Old README sections: 7.6, 11 and the paragraph *Before the live write run*.
+- [official-run.md](official-run.md): the official server run (Release 8.1): `agentswitch-harness.toml`, `python -m harness official`, the provided token and model, and the rehearsal steps.
 - [safety.md](safety.md): the STRIDE changes to the behaviour, the ground rules and the safety rules 1–13. Old README sections: Security review, the ground rules of 6.1, and 8.
 - [known-limits.md](known-limits.md): the known limits and the open questions. Old README section: 14.
 - [history.md](history.md): the review rounds, the old Contents, Quick start and The idea in one minute, and the old-to-new section map. Old README section: 15.

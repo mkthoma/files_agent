@@ -59,3 +59,24 @@ class Session:
     def invalidate_token(self) -> None:
         """Test hook: forget the token so the next call must log in again."""
         self._token = "invalid-token"
+
+
+class TokenSession(Session):
+    """A session on a ready bearer token (the official server run): no login, and a 401 is fatal,
+    because the token comes from the environment and cannot be refreshed."""
+
+    def __init__(self, transport: Any, email: str, token: str, trace: Trace) -> None:
+        if not token:
+            raise AuthError("No token provided: AGENTSWITCH_TOKEN is empty")
+        self.transport = transport
+        self.email = email
+        self._password = Secret("")  # never used; kept so shared Session code can't crash
+        self.trace = trace
+        self._token: str | None = Secret(token)
+        self.trace.redact.add(self._token)
+        self._me: dict[str, Any] | None = None
+        self.trace.write("login", ok=True, status=None, mode="provided-token")
+
+    def login(self) -> None:
+        # Session.request retries a 401 through login(); with a fixed token that retry must stop here.
+        raise AuthError("The provided AGENTSWITCH_TOKEN was rejected (HTTP 401) and cannot be refreshed")
