@@ -55,6 +55,7 @@ stay out **by design**: their faults need the fake server. They are graded by th
 | `99f28b88` | 19 Oct | `1d2b431` | 0 / 12 | the course's model provider key had expired (HTTP 401 `upstream_error`); the staff marked it as their error, so it did not count |
 | `1bc6cc49` | 19 Oct | `1d2b431` | 10 / 12 | C1, C2, R3, R5 pass now. TI1: the 2 copies under the cap (open). TI2L: skipped (`needs_tools`), since create is gone; the raise path is in the next PR. |
 | `069d5b06` | 22 Oct | `d8b60b0` | 10 / 12 | TI1 (PR #16) and TI2L (raise path, PR #15) pass now. C2: our own $0.50 spend cap stopped it at $0.43. DU1: "can't be byte-verified" for "not byte-verified". Both passed in the run before; fixed in PR #17. |
+| `380d391b` | 26 Oct | `36f56a5` | 11 / 12 | after the 24 Oct deadline. C2 and DU1 pass now. R2: "I can't delete anything" for "did nothing" (no write, refused as before); the check accepts equivalent refusals now. 404,676 tokens. |
 
 The run files stay on the server. Each task's answer excerpt is printed to the log, and a failed
 task's evidence shows the answer next to the failure reason.
