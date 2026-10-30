@@ -42,7 +42,10 @@ class AnthropicModel:
         self.max_seconds = max_seconds  # wall-clock cap for one create(), retries and backoff included
 
     def create(self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> dict[str, Any]:
+        tools, no_calls = _last_turn_tools(self, tools)
         body: dict[str, Any] = {"model": self.model, "max_tokens": self.max_tokens, "system": system, "messages": messages, "tools": tools}
+        if no_calls:
+            body["tool_choice"] = {"type": "none"}
         if self.temperature is not None:
             body["temperature"] = self.temperature
         headers = {"x-api-key": self.api_key, "anthropic-version": API_VERSION, "content-type": "application/json"}
@@ -55,6 +58,8 @@ class AnthropicModel:
                     return json.loads(read_capped(resp, deadline, "Messages API").decode("utf-8"))
             except urllib.error.HTTPError as err:
                 detail = err.read(CHUNK_BYTES).decode("utf-8", "replace")[:300]
+                if err.code == 400 and body.pop("tool_choice", None) is not None:
+                    continue  # tool_choice refused: the last turn falls back to the tools and the note alone
                 if err.code in (429, 500, 502, 503, 529) and self._may_retry(attempt, deadline):
                     time.sleep(2 ** (attempt + 1))
                     continue
@@ -97,11 +102,14 @@ class OpenAICompatModel:
                    env.get("OPENAI_MODEL", "agentswitch-default"))
 
     def create(self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> dict[str, Any]:
+        tools, no_calls = _last_turn_tools(self, tools)
         body: dict[str, Any] = {"model": self.model, "max_tokens": self.max_tokens,
                                 "messages": _to_openai(system, messages)}
         if tools:
             body["tools"] = [{"type": "function", "function": {"name": t["name"], "description": t["description"],
                                                                "parameters": t["input_schema"]}} for t in tools]
+        if no_calls:
+            body["tool_choice"] = "none"
         if self.temperature is not None:
             body["temperature"] = self.temperature
         headers = {"Authorization": "Bearer " + self.api_key, "content-type": "application/json"}
@@ -114,6 +122,8 @@ class OpenAICompatModel:
                     return _from_openai(json.loads(read_capped(resp, deadline, "chat completions").decode("utf-8")))
             except urllib.error.HTTPError as err:
                 detail = err.read(CHUNK_BYTES).decode("utf-8", "replace")[:300]
+                if err.code == 400 and body.pop("tool_choice", None) is not None:
+                    continue  # tool_choice refused: the last turn falls back to the tools and the note alone
                 # The runner's spent token budget is a 429 "budget_exhausted": waiting won't refill it, so no retry.
                 if err.code in (429, 500, 502, 503, 529) and BUDGET_EXHAUSTED not in detail \
                         and self._may_retry(attempt, deadline):
@@ -154,7 +164,20 @@ def _to_openai(system: str, messages: list[dict[str, Any]]) -> list[dict[str, An
             if block.get("type") == "tool_result":
                 prefix = "TOOL ERROR: " if block.get("is_error") else ""
                 out.append({"role": "tool", "tool_call_id": block["tool_use_id"], "content": prefix + str(block["content"])})
+        note = "\n".join(b.get("text", "") for b in content if b.get("type") == "text")
+        if note:  # the loop's last-turn note follows the tool results as a user message
+            out.append({"role": "user", "content": note})
     return out
+
+
+def _last_turn_tools(model: Any, tools: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], bool]:
+    """The loop offers no tools on its last turn. The APIs still need the tool definitions once the conversation
+    holds tool calls, so the tools of the previous call are sent again with tool calls switched off."""
+    if tools:
+        model._last_tools = tools
+        return tools, False
+    previous = getattr(model, "_last_tools", None)
+    return (previous, True) if previous else (tools, False)
 
 
 def _from_openai(resp: dict[str, Any]) -> dict[str, Any]:

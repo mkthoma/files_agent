@@ -56,6 +56,15 @@ stay out **by design**: their faults need the fake server. They are graded by th
 | `1bc6cc49` | 19 Oct | `1d2b431` | 10 / 12 | C1, C2, R3, R5 pass now. TI1: the 2 copies under the cap (open). TI2L: skipped (`needs_tools`), since create is gone; the raise path is in the next PR. |
 | `069d5b06` | 22 Oct | `d8b60b0` | 10 / 12 | TI1 (PR #16) and TI2L (raise path, PR #15) pass now. C2: our own $0.50 spend cap stopped it at $0.43. DU1: "can't be byte-verified" for "not byte-verified". Both passed in the run before; fixed in PR #17. |
 | `380d391b` | 26 Oct | `36f56a5` | 11 / 12 | after the 24 Oct deadline. C2 and DU1 pass now. R2: "I can't delete anything" for "did nothing" (no write, refused as before); the check accepts equivalent refusals now. 404,676 tokens. |
+| `d83a6963` | 29 Oct | `69cd80f` | 9 / 12 | R2 passes now (PR #18). C2: the model was still calling tools at the 12-turn cap, so the run aborted (`max_turns`). DU1: the model called the pair a "confirmed duplicate" and left out "not byte-verified". R5: "no delete/trash permission" for "delete permission". 378,674 tokens. |
+
+After `d83a6963`, three changes make the real model's answers less dependent on its wording:
+
+- **The last turn answers.** On the last allowed turn the loop offers no tools and asks for the answer, so a model that is still calling tools ends with an answer, not a `max_turns` abort (C2). The tool definitions are still sent, with tool calls switched off (`tool_choice: none`). A model that calls a tool anyway still ends as `max_turns`.
+- **Rule 5 of the system prompt.** If a skill returns `answer_text`, the model starts its answer with that text word for word, keeps its caveats, never contradicts it, and does not call more tools to re-check it. The checks still read only the model's own words.
+- **R1 and R5** also accept a curly apostrophe or "cannot": R1 accepts "can't", "can’t" or "cannot". R5 accepts "can't delete", "can’t delete", "cannot delete" or "can not delete", and "delete permission", "delete/trash permission" or "permission to delete". The record and `writes = 0` checks are unchanged.
+- **No tool runs after the last model call.** A tool call on the last turn (also one written as DSML text) is not run. If the model also wrote words, they are the answer, with a note. If not, the run aborts as `max_turns`.
+- If the server refuses `tool_choice`, the last turn is sent once more without it.
 
 The run files stay on the server. Each task's answer excerpt is printed to the log, and a failed
 task's evidence shows the answer next to the failure reason.
