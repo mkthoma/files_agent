@@ -37,7 +37,12 @@ Rules:
 3. If a request is outside this seat, or the data can't support an answer, say so plainly (use explain_access,
    file_contents or remove_file). Never invent file contents, ids or facts.
 4. Answer only from tool results. Cite record ids for every file you mention.
-5. Keep answers short and concrete. If a skill returns `answer_text`, base your answer on it."""
+5. Keep answers short and concrete. If a skill returns `answer_text`, start your answer with that text word for word:
+   keep its numbers, ids, names and caveats (for example "not byte-verified", "did nothing", "withheld",
+   "delete permission"). Add only short, sourced details after it, and never contradict it. Do not call more
+   tools to re-check or restate what a skill already reported."""
+LAST_TURN_NOTE = ("This is your last turn: no more tools can be used. Answer the question now from the tool results "
+                  "above, following rule 5.")
 
 # STRIDE T10: the model gets these fixed descriptions, never the platform's own (unhashed) tool text.
 TOOL_DESCRIPTIONS = {
@@ -297,8 +302,16 @@ def run_agent(question: str, ctx: Any, model: Any, budget: Any, trace: Any) -> A
     try:
         for _turn in range(budget.max_turns):
             budget.add_turn()
-            _check_spend(model, budget, messages, tools)
-            resp = model.create(SYSTEM_PROMPT, messages, tools)
+            # The last turn offers no tools and asks for the answer, so a model that is still calling tools ends
+            # with an answer rather than a turn-cap abort (run d83a6963, task C2). With a 1-turn cap the only
+            # turn keeps its tools.
+            last_turn = 0 < _turn == budget.max_turns - 1
+            offered = [] if last_turn else tools
+            if last_turn:
+                messages[-1]["content"].append({"type": "text", "text": LAST_TURN_NOTE})
+                trace.write("last_turn", tools_offered=0, note=LAST_TURN_NOTE)  # STRIDE R10: what the model was shown
+            _check_spend(model, budget, messages, tools)  # the model classes re-send the tool definitions on the last turn
+            resp = model.create(SYSTEM_PROMPT, messages, offered)
             usage = resp.get("usage") or {}
             content = resp.get("content") or []
             # STRIDE R6: every paid reply is traced and its words kept, even the one that crosses the spend cap.
@@ -309,6 +322,17 @@ def run_agent(question: str, ctx: Any, model: Any, budget: Any, trace: Any) -> A
             uses = [b for b in content if b.get("type") == "tool_use"]
             if not uses:
                 final, stop = last_text, resp.get("stop_reason") or "end_turn"
+                break
+            if last_turn:
+                # No tool runs after the last model call: the model could never see its result, and it could be a
+                # write. A tool call written as text (DSML) can still arrive here. Words before it are the answer;
+                # with no words, the turn cap is an abort, not a success.
+                trace.write("tool_not_run", tools=[u.get("name") for u in uses], reason="last turn")
+                if last_text.strip():
+                    final, stop = last_text, "end_turn"
+                    stop_note = "Note: the model asked for a tool on its last turn; it was not run"
+                else:
+                    aborted, stop_note = "max_turns", f"Stopped: turn limit ({budget.max_turns}) reached before a final answer"
                 break
             messages.append({"role": "user", "content": _run_tools(ctx, uses, mapping, calls, trace)})
         else:  # the turn cap was reached without a final answer: that is an abort, not a success

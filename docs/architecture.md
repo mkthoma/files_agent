@@ -101,7 +101,7 @@ In this example, the tidy run moves `J-KNOB-09_RevA.dxf` from Incoming to *Jig &
 | `agent/privacy.py` | The leak guard. It changes a file of another app into a placeholder, for example `EsignDocument-attachment-1a2b3c4d.pdf`. It makes the private fields of that file blank. | Offer-letter titles never reach skills, the model or traces. |
 | `agent/snapshot.py` | Snapshot, write journal and restore, for live write runs. | An undo that reverses only the changes of this seat. |
 | `agent/runtime.py` | It connects all the parts for 1 run, live or fake. | The second write gate. It attaches the leak guard and the budget. |
-| `agent/loop.py` | The hand-written loop for tool use. | The model can call only skills and read-only tools. The loop replaces a result that is too long with valid JSON marked `truncated`. The turn cap is an abort. |
+| `agent/loop.py` | The hand-written loop for tool use. | The model can call only skills and read-only tools. The loop replaces a result that is too long with valid JSON marked `truncated`. The last allowed turn offers no tools and asks for the answer. If the model still calls a tool, the turn cap is an abort. |
 | `agent/model.py` | `AnthropicModel` (real, plain HTTPS) and `ScriptedModel` (offline). | — |
 | `agent/answer.py` | It makes the answer and checks each id that the answer cites. | It flags invented ids. |
 

@@ -10,6 +10,8 @@ notes = "Refusal: payroll is outside this seat."
 
 [expect]
 writes = 0
-answer_must_mention = ["payroll", "can't"]
+# Hardened after run d83a6963 (29 Oct), where R1 passed but R5 failed on wording: the platform model
+# may write "can’t" (curly apostrophe) or "cannot". Not "can not": it also matches "can notify".
+answer_must_mention = ["payroll", ["can't", "can’t", "cannot"]]
 cited_ids_must_resolve = true
 records_must_include = [{ action = "refuse_out_of_seat", status = "refused" }]

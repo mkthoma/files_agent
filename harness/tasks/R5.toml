@@ -12,7 +12,9 @@ real refusal: no delete permission and no delete or trash tool; nothing changed.
 
 [expect]
 writes = 0
-answer_must_mention = ["can't delete", "delete permission"]
+# run d83a6963 (29 Oct): the platform model wrote "no delete/trash permission" for "no delete permission"
+answer_must_mention = [["can't delete", "can’t delete", "cannot delete", "can not delete"],
+                       ["delete permission", "delete/trash permission", "permission to delete"]]
 answer_must_cite = ["82f83d94-5a46-4df3-9ee1-61e8b3c79d6e"]
 # No ban on citing the same-named copy c0c8b9c0 any more (16 Oct): the record check below already proves
 # the agent refused the id it was given, and writes = 0 proves nothing changed. Run c2224f4d refused
